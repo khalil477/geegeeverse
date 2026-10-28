@@ -31,7 +31,7 @@ const gateHeaders={'content-type':'text/html; charset=utf-8','cache-control':'no
 const gateAttempts=new Map();
 function limited(req){const key=String(req.socket.remoteAddress || 'visitor');const now=Date.now();const attempt=gateAttempts.get(key)||{n:0,since:now};if(now-attempt.since>15*60*1000){attempt.n=0;attempt.since=now;}attempt.n++;gateAttempts.set(key,attempt);return attempt.n>20;}
 
-const ROOMS = ['plaza','study','lounge','chm1311','bio1140','psy1101','mat1320'];
+const ROOMS = ['plaza','study','lounge','dorm','chm1311','bio1140','psy1101','mat1320'];
 const CLASS_ROOMS = new Set(['chm1311','bio1140','psy1101','mat1320']);
 const whiteboards = Object.fromEntries([...CLASS_ROOMS].map(room => [room, []]));
 const questions = [

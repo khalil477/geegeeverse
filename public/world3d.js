@@ -2,7 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 /* GeeGeeVerse 3D alpha: campus-inspired landmarks, multiplayer, shared classroom boards, opt-in WebRTC voice. */
 const $=sel=>document.querySelector(sel), $$=sel=>[...document.querySelectorAll(sel)];
 const colors={coral:'#ef9f82',mint:'#92dab6',lavender:'#aca5ee',gold:'#f2cc7f',sky:'#81c9f1'};
-const rooms={plaza:{name:'Main Campus',detail:'Go anywhere · explore together',icon:'✳'},study:{name:'Morisset Library',detail:'The study hall',icon:'📚'},lounge:{name:'University Centre',detail:'Student lounge',icon:'☕'},chm1311:{name:'CHM 1311',detail:'Introduction to Chemistry · practice class',icon:'🧪'},bio1140:{name:'BIO 1140',detail:'Cell biology · practice class',icon:'🧬'},psy1101:{name:'PSY 1101',detail:'Psychology · practice class',icon:'🧠'},mat1320:{name:'MAT 1320',detail:'Calculus · practice class',icon:'✏️'}};
+const rooms={plaza:{name:'Main Campus',detail:'Go anywhere · explore together',icon:'✳'},study:{name:'Morisset Library',detail:'The study hall',icon:'📚'},lounge:{name:'University Centre',detail:'Student lounge',icon:'☕'},dorm:{name:'My Study Nook',detail:'Decorate your personal dorm room',icon:'🛏️'},chm1311:{name:'CHM 1311',detail:'Introduction to Chemistry · practice class',icon:'🧪'},bio1140:{name:'BIO 1140',detail:'Cell biology · practice class',icon:'🧬'},psy1101:{name:'PSY 1101',detail:'Psychology · practice class',icon:'🧠'},mat1320:{name:'MAT 1320',detail:'Calculus · practice class',icon:'✏️'}};
 // Campus-inspired arrangement based on the official main-campus map. Stylized and NOT georeferenced.
 const landmarks=[
  {id:'tbt',name:'Tabaret Hall',abbr:'TBT',x:-130,z:-68,w:40,d:31,h:29,kind:'heritage',color:0xe9d5bd},
@@ -24,8 +24,8 @@ const landmarks=[
  {id:'minto',name:'Minto Sports',abbr:'MNO',x:126,z:88,w:36,d:30,h:24,color:0xc9c7ba},
  {id:'brooks',name:'Brooks',abbr:'BRS',x:120,z:-32,w:25,d:27,h:21,color:0xbdc8ba}
 ];
-const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:-42,z:110,cameraYaw:0,cameraDist:27,near:null};
-const state3d={scene:null,camera:null,renderer:null,avatar:null,actors:new Map(),buildings:[],interiorObjects:[],questionTexture:null,boardMesh:null,firstFrame:false,ground:null};
+const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:-42,z:110,cameraYaw:0,cameraDist:24,cameraPitch:.58,near:null,jump:0,jumpVelocity:0,velocityX:0,velocityZ:0};
+const state3d={scene:null,camera:null,renderer:null,avatar:null,actors:new Map(),buildings:[],interiorObjects:[],questionTexture:null,boardMesh:null,firstFrame:false,ground:null,npcs:[],desk:null};
 let keyset=new Set(),touchKey=null,movingTarget=null,lastAt=0,lastSent=0,dragging=false,prevPointer=null,toastTimeout,voiceStream=null,voiceConnections=new Map(),voiceEnabled=false;
 const audioBin=document.createElement('div');audioBin.id='webrtc-audio';audioBin.hidden=true;document.body.append(audioBin);
 const questionRoom={chm1311:'CHM 1311',bio1140:'BIO 1140',psy1101:'PSY 1101',mat1320:'MAT 1320'};
@@ -39,6 +39,7 @@ function setupUI(){
  $$('.swatch').forEach(b=>b.addEventListener('click',()=>{$$('.swatch').forEach(x=>x.classList.remove('chosen'));b.classList.add('chosen');app.color=b.dataset.color;}));
  $('#profile-btn').addEventListener('click',()=>{$('#welcome').hidden=false;});
  $('#help-btn').addEventListener('click',()=>$('#help').hidden=false);
+ window.GGVSolo?.init({notify,goRoom,room:()=>app.room,onDecor:()=>{if(app.room==='dorm')buildWorld()}});document.addEventListener('ggv:learnupdate',()=>{if(app.room in questionRoom)draw3DBoard()});
  $('#close-help').addEventListener('click',()=>$('#help').hidden=true);
  $$('.tabs button').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
  $('#return-campus').addEventListener('click',()=>goRoom('plaza'));
@@ -49,16 +50,17 @@ function setupUI(){
  $('#solution-form').addEventListener('submit',e=>{e.preventDefault();const content=clean($('#solution-input').value);if(content.length<2)return;send({type:'board_submit',content});$('#solution-input').value='';});
  $('#mic-toggle').addEventListener('click',()=>voiceEnabled?stopVoice():startVoice());
  for(const b of $$('[data-move]')){b.addEventListener('pointerdown',e=>{e.preventDefault();touchKey=b.dataset.move;b.setPointerCapture(e.pointerId);});b.addEventListener('pointerup',()=>touchKey=null);b.addEventListener('pointercancel',()=>touchKey=null);b.addEventListener('lostpointercapture',()=>touchKey=null)}
- window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='e')enterNearby();});
+ window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='e')enterNearby();if(k==='f'&&app.room in questionRoom){if(Math.hypot(app.x+11,app.z+7)<12)window.GGVSolo?.talk();else notify('Walk closer to your professor or click Talk in Learn.');}if(k===' '&&app.jump<=.01){app.jumpVelocity=7.8;e.preventDefault()}if(k==='shift')keyset.add('shift');});
  window.addEventListener('keyup',e=>keyset.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{keyset.clear();touchKey=null;});
+ const mobileExtras=document.querySelector('.touch-controls>div');if(mobileExtras){const jump=document.createElement('button');jump.id='mobile-jump';jump.textContent='⤒';jump.title='Jump';jump.setAttribute('aria-label','Jump');jump.addEventListener('click',()=>{if(app.jump<=.01)app.jumpVelocity=7.8});mobileExtras.append(jump);const sprint=document.createElement('button');sprint.id='mobile-sprint';sprint.textContent='⚡';sprint.title='Sprint';sprint.setAttribute('aria-label','Toggle sprint');sprint.addEventListener('click',()=>{sprint.classList.toggle('active');if(sprint.classList.contains('active'))keyset.add('shift');else keyset.delete('shift')});mobileExtras.append(sprint);}
  buildDirectory();renderClass();renderChat();renderPosts();
 }
-function buildDirectory(){const destinations=$('#destinations');destinations.replaceChildren();const sections=[{heading:'YOUR WORLD',items:[{room:'plaza',name:'Main Campus',abbr:'MAP',icon:'🏛',detail:'Open campus'}]},{heading:'CLASSES',items:[{room:'chm1311',name:'CHM 1311',icon:'🧪',detail:'STEM · Chemistry'},{room:'bio1140',name:'BIO 1140',icon:'🧬',detail:'Gendron · Biology'},{room:'psy1101',name:'PSY 1101',icon:'🧠',detail:'FSS · Psychology'},{room:'mat1320',name:'MAT 1320',icon:'📐',detail:'SITE · Calculus'}]},{heading:'SPACES',items:[{room:'study',name:'Morisset',icon:'📚',detail:'Study Hall'},{room:'lounge',name:'University Centre',icon:'☕',detail:'Lounge'}]}];for(const section of sections){const heading=document.createElement('div');heading.className='dest-group';heading.textContent=section.heading;destinations.append(heading);for(const item of section.items){const b=document.createElement('button');b.className='destination';b.dataset.room=item.room;const ico=document.createElement('span');ico.className='desticon';ico.textContent=item.icon;const labels=document.createElement('span');const name=document.createElement('b');name.textContent=item.name;const sub=document.createElement('small');sub.textContent=item.detail;labels.append(name,sub);b.append(ico,labels);b.addEventListener('click',()=>goRoom(item.room));destinations.append(b);}}}
+function buildDirectory(){const destinations=$('#destinations');destinations.replaceChildren();const sections=[{heading:'YOUR WORLD',items:[{room:'plaza',name:'Main Campus',abbr:'MAP',icon:'🏛',detail:'Open campus'}]},{heading:'CLASSES',items:[{room:'chm1311',name:'CHM 1311',icon:'🧪',detail:'STEM · Chemistry'},{room:'bio1140',name:'BIO 1140',icon:'🧬',detail:'Gendron · Biology'},{room:'psy1101',name:'PSY 1101',icon:'🧠',detail:'FSS · Psychology'},{room:'mat1320',name:'MAT 1320',icon:'📐',detail:'SITE · Calculus'}]},{heading:'SPACES',items:[{room:'study',name:'Morisset',icon:'📚',detail:'Study Hall'},{room:'lounge',name:'University Centre',icon:'☕',detail:'Lounge'},{room:'dorm',name:'My Study Nook',icon:'🛏️',detail:'Private solo room'}]}];for(const section of sections){const heading=document.createElement('div');heading.className='dest-group';heading.textContent=section.heading;destinations.append(heading);for(const item of section.items){const b=document.createElement('button');b.className='destination';b.dataset.room=item.room;const ico=document.createElement('span');ico.className='desticon';ico.textContent=item.icon;const labels=document.createElement('span');const name=document.createElement('b');name.textContent=item.name;const sub=document.createElement('small');sub.textContent=item.detail;labels.append(name,sub);b.append(ico,labels);b.addEventListener('click',()=>goRoom(item.room));destinations.append(b);}}}
 function sendJoin(){if(app.ws?.readyState===1)app.ws.send(JSON.stringify({type:'join',name:app.name,color:app.color,hair:'short'}));}
 function connect(){const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);app.ws=ws;ws.addEventListener('open',()=>{app.connected=true;$('#status').textContent='Connected';$('#status-dot').classList.add('online');if(app.joined)sendJoin();});ws.addEventListener('close',()=>{app.connected=false;$('#status').textContent='Reconnecting…';$('#status-dot').classList.remove('online');app.players.clear();stopVoice();setTimeout(connect,2000)});ws.addEventListener('message',e=>{try{handle(JSON.parse(e.data))}catch(err){console.warn('message',err)}});}
 function handle(m){
- if(m.type==='welcome'){app.id=m.id;app.room='plaza';app.questions=m.questions||[];app.posts=m.posts||[];app.xp=m.xp||0;app.counts=m.counts||{};app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.x=-42;app.z=110;$('#player-label').textContent=app.name;buildWorld();renderPosts();renderClass();setRoomLabel();updateCounts();notify('Welcome to the 3D campus, '+app.name+'!');}
- else if(m.type==='room'){stopVoice();app.room=m.room;app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.board=m.board||[];app.x=0;app.z=2;buildWorld();renderClass();setRoomLabel();renderChat();updateCounts();notify('Entered '+rooms[app.room].name);}
+ if(m.type==='welcome'){app.id=m.id;app.room='plaza';app.questions=m.questions||[];app.posts=m.posts||[];app.xp=m.xp||0;app.counts=m.counts||{};app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.x=-42;app.z=110;window.GGVSolo?.begin();window.GGVSolo?.enter('plaza');$('#player-label').textContent=app.name;buildWorld();renderPosts();renderClass();setRoomLabel();updateCounts();notify('Welcome to the 3D campus, '+app.name+'!');}
+ else if(m.type==='room'){stopVoice();app.room=m.room;app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.board=m.board||[];app.x=0;app.z=2;app.velocityX=0;app.velocityZ=0;window.GGVSolo?.enter(app.room);buildWorld();renderClass();setRoomLabel();renderChat();updateCounts();notify('Entered '+rooms[app.room].name);}
  else if(m.type==='presence'){app.players=new Map((m.players||[]).map(p=>[p.id,p]));syncVoices();updateCounts();}
  else if(m.type==='counts'){app.counts=m.counts;updateCounts();}
  else if(m.type==='moved'){const p=app.players.get(m.id);if(p){p.x=m.x;p.z=m.z;}}
@@ -106,21 +108,39 @@ function campus(){const scene=state3d.scene;scene.background=new THREE.Color(0xb
  box(35,.14,18,materials.pave,-46,.04,105);box(11,.15,11,mat(0x98bcb1),7,.03,6);
  const fountain=cyl(4.8,5.3,.9,mat(0xd4d9c7),-38,.6,105,24);cyl(3.9,3.9,.15,mat(0x6fb1b8),-38,1.1,105,24);
  for(const b of landmarks)createBuilding(b);
+  for(const [i,loc] of [[-23,90],[21,86],[-60,17],[11,-8],[87,22],[101,70]].entries()){const who=avatarMesh(['Study Buddy','Campus Guide','Explorer','Tutor','Geo','Nova Fan'][i],['mint','sky','gold','lavender','coral','sky'][i],'short');who.position.set(loc[0],0,loc[1]);scene.add(who);state3d.npcs.push({name:'Campus NPC',mesh:who,x:loc[0],z:loc[1],roam:3+i%3})}
+ 
  // deterministic groves; keep entrances and walking lanes clear
  for(let i=0;i<105;i++){const x=((i*73)%306)-153,z=((i*127)%253)-127;let near=false;for(const b of landmarks)if(Math.abs(x-b.x)<b.w/2+6&&Math.abs(z-b.z)<b.d/2+11){near=true;break;}if([-112,-53,18,70,116].some(v=>Math.abs(x-v)<5)||[-88,-22,33,74].some(v=>Math.abs(z-v)<5))near=true;if(!near)tree(x,z,1.9+(i%4)*.31);}
+ 
+ // Friendly campus hub: benches, lamp posts, colourful flag poles, and a central quest marker.
+ for(const [x,z] of [[-67,95],[-16,100],[-80,75],[2,78],[24,-12],[79,58]]){
+  box(6,.48,2,mat(0xb88e70),x,1.65,z);box(.4,1.7,.4,mat(0x6e7167),x-2.2,.8,z);box(.4,1.7,.4,mat(0x6e7167),x+2.2,.8,z);
+ }
+ for(const [x,z] of [[-75,116],[-9,116],[-102,-39],[94,-26],[111,77]]){
+  cyl(.22,.29,9,mat(0x597c6d),x,4.5,z,8);
+  sphere(1,mat(0xffe6ad),x,9.1,z);
+ }
+ for(const [i,x] of [-70,-57,-44,-31,-18].entries()){
+  box(.2,11,.2,mat(0xa4b7aa),x,5.5,125);
+  const banner=box(3,5,.18,mat([0xf1b39a,0xf4d58d,0x9edbb6,0xb7b1ed,0x83c6da][i]),x+1.5,7,125);
+ }
+ sign('QUESTS + CLASSES','Explore · learn · level up',-40,14,92,35);
+
  // station and boundary elements
  box(25,.2,13,materials.pave,149,.08,120);sign('O-TRAIN','uOttawa station (stylized)',147,11,117,31);
  sign('GEEGEEVERSE','uOttawa-inspired campus',-44,11,114,33);
 }
 function wrapLines(ctx,text,maxWidth){const out=[];let line='';for(const word of text.split(/\s+/)){const t=(line?line+' ':'')+word;if(ctx.measureText(t).width>maxWidth&&line){out.push(line);line=word}else line=t}if(line)out.push(line);return out}
 function draw3DBoard(){const m=state3d.boardMesh;if(!m)return;const c=document.createElement('canvas');c.width=1024;c.height=576;const g=c.getContext('2d');g.fillStyle='#204f46';g.fillRect(0,0,1024,576);g.strokeStyle='#c8b992';g.lineWidth=16;g.strokeRect(10,10,1004,556);g.fillStyle='#a9d9b0';g.font='700 31px system-ui';g.fillText((questionRoom[app.room]||'LEARN TOGETHER')+'  ·  TODAY’S PRACTICE',45,60);
- const question=courseQuestion();g.fillStyle='#f4f4df';g.font='bold 47px system-ui';let yy=143;for(const line of wrapLines(g,question?.q||'Discuss a problem with your classmates.',920).slice(0,4)){g.fillText(line,45,yy);yy+=60;}
+ const question=courseQuestion();g.fillStyle='#f4f4df';g.font='bold 47px system-ui';let yy=143;for(const line of wrapLines(g,window.GGVSolo?.getBoardQuestion?.()||question?.q||'Discuss a problem with your classmates.',920).slice(0,4)){g.fillText(line,45,yy);yy+=60;}
  g.fillStyle='#a4ceb7';g.font='27px system-ui';g.fillText('What is your reasoning?',45,Math.max(340,yy+15));g.fillStyle='#f1e6cc';g.font='24px system-ui';const entries=app.board.slice(-2);let y=430;for(const entry of entries){const txt=entry.author+': '+entry.content;for(const line of wrapLines(g,txt,920).slice(0,2)){g.fillText(line,45,y);y+=32;}}
  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const old=m.material.map;m.material.map=tex;m.material.needsUpdate=true;if(old)old.dispose();}
 function interior(){const room=app.room;state3d.scene.background=new THREE.Color(room==='lounge'?0xd7c3aa:0xc2d4c8);state3d.scene.fog=null;box(29,.3,29,mat(room==='lounge'?0xc3a488:0xd5c4aa),0,-.22,0);box(29,10,.5,mat(room==='lounge'?0xaf9684:0x9dbeb3),0,5,-14.5);box(.5,10,29,mat(0xb6ccc1),-14.5,5,0);box(.5,10,29,mat(0xb6ccc1),14.5,5,0);
- const board=box(16,8,.2,mat(0x215246),0,5.8,-14.0);state3d.boardMesh=board;if(room in questionRoom)draw3DBoard();else{sign(room==='study'?'STUDY HALL':'STUDENT LOUNGE',room==='study'?'Grab a seat and review':'Hang out with students',0,7.4,-12.7,23);}
+ const board=box(16,8,.2,mat(0x215246),0,5.8,-14.0);state3d.boardMesh=board;if(room in questionRoom){draw3DBoard();const prof=avatarMesh(room==='chm1311'?'Professor Nova':'Course Mentor','gold','bun');prof.position.set(-11,0,-7);state3d.scene.add(prof);state3d.npcs.push({name:'Professor Nova',mesh:prof,x:-11,z:-7,roam:0});sign('TALK TO PROFESSOR','Press F · Get a hint',-10,9,-7,17)}else{sign(room==='study'?'STUDY HALL':room==='dorm'?'YOUR STUDY NOOK':'STUDENT LOUNGE',room==='study'?'Grab a seat and review':room==='dorm'?'Personalize your space':'Hang out with students',0,7.4,-12.7,23);}
  for(const [x,z] of [[-8,-3],[8,-3],[-8,7],[8,7]]){box(7,.55,3,materials.wood,x,1.5,z);for(const dx of [-2.6,2.6])for(const dz of [-1,1])box(.35,2.1,.35,mat(0x8b7058),x+dx,.5,z+dz)}
  for(let x of [-10,10])for(let z of [-9,2,10]){box(2,.8,2,mat(room==='lounge'?0x7b8c92:0x749f98),x,.5,z)}
+ if(room==='dorm'){const pal={mint:0x93cfa7,coral:0xf0a99c,lavender:0xb7a2e3,gold:0xe8ce87};const c=window.GGVSolo?.getDecor()||'mint';const top=box(8,.6,4,mat(pal[c]||pal.mint),0,1.6,-5);state3d.desk=top;box(9,2,4,mat(0xb29377),0,.5,-5);box(4,1.5,2,mat(0xcddfbf),4,2,-6);sphere(1.8,mat(0xe6d5a2),-7,1.7,-4);sign('YOUR DESK','Change colours from Learn',0,5,-4,16);}
  // physical portal back to the main campus, accessible with E
  box(7,8,.7,mat(0x295b59),0,4,14.15);sign('EXIT','Press E · back to campus',0,11,13.4,18);
 }
@@ -132,20 +152,50 @@ function avatarMesh(name,color='mint',hair='short',isMe=false){const group=new T
  const label=document.createElement('canvas');label.width=360;label.height=80;const g=label.getContext('2d');g.fillStyle='#173e3bbb';g.beginPath();g.roundRect(3,3,354,70,17);g.fill();g.fillStyle='#fff';g.font='bold 35px system-ui';g.textAlign='center';g.fillText(name.slice(0,18),180,49,330);const tex=new THREE.CanvasTexture(label);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));sprite.position.y=5.5;sprite.scale.set(5.4,1.2,1);group.add(sprite);return group;
 }
 function buildWorld(){if(!state3d.renderer)return;const old=state3d.scene;if(old){old.traverse(obj=>{if(obj.geometry)obj.geometry.dispose();if(obj.material){for(const m of Array.isArray(obj.material)?obj.material:[obj.material]){m.map?.dispose();m.dispose();}}});}
- const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();const avatar=avatarMesh(app.name,app.color,'short',true);scene.add(avatar);state3d.avatar=avatar;app.near=null;
- const limit=app.room==='plaza'?160:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);state3d.camera.position.set(app.x+14,18,app.z+29);state3d.camera.lookAt(app.x,2,app.z);}
-function init3D(){const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,700);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0];app.cameraYaw-=dx*.006;prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=THREE.MathUtils.clamp(app.cameraDist+e.deltaY*.03,12,70)},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';}
+ const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();const avatar=avatarMesh(app.name,app.color,'short',true);scene.add(avatar);state3d.avatar=avatar;app.near=null;
+ const limit=app.room==='plaza'?160:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);state3d.camera.position.set(app.x,14,app.z+29);state3d.camera.lookAt(app.x,2,app.z);}
+function init3D(){const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,700);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0],dy=e.clientY-prevPointer[1];app.cameraYaw-=dx*.006;app.cameraPitch=THREE.MathUtils.clamp(app.cameraPitch+dy*.003,.18,.94);prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('click',e=>{if(!state3d.boardMesh||!app.joined||!(app.room in questionRoom))return;const r=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,state3d.camera);if(ray.intersectObject(state3d.boardMesh).length){setTab('board');notify('The problem is ready in the Learn panel.')}});canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=THREE.MathUtils.clamp(app.cameraDist+e.deltaY*.02,8,50)},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';}
 function resize(){if(!state3d.renderer)return;const v=$('#viewport');const w=v.clientWidth,h=v.clientHeight;state3d.renderer.setSize(w,h,false);state3d.camera.aspect=w/h;state3d.camera.updateProjectionMatrix();}
 function syncActors(t){if(!state3d.scene)return;const ids=new Set();for(const p of app.players.values()){if(p.id===app.id)continue;ids.add(p.id);let mesh=state3d.actors.get(p.id);if(!mesh){mesh=avatarMesh(p.name,p.color,p.hair);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}mesh.position.lerp(new THREE.Vector3(p.x,0,p.z),.24);mesh.children[0].rotation.z=Math.sin(t/200+p.x)*.01;}
  for(const [id,obj] of [...state3d.actors.entries()])if(!ids.has(id)){state3d.scene.remove(obj);state3d.actors.delete(id);}}
-function update(dt,t){if(!app.joined)return;let lx=0,lz=0;const s=keyset;if(s.has('w')||s.has('arrowup')||touchKey==='up')lz--;if(s.has('s')||s.has('arrowdown')||touchKey==='down')lz++;if(s.has('a')||s.has('arrowleft')||touchKey==='left')lx--;if(s.has('d')||s.has('arrowright')||touchKey==='right')lx++;
- if(lx||lz){const d=Math.hypot(lx,lz);lx/=d;lz/=d;const c=Math.cos(app.cameraYaw),sn=Math.sin(app.cameraYaw),vel=app.room==='plaza'?38:8.5;app.x+=(lx*c+lz*sn)*dt*vel;app.z+=(lz*c-lx*sn)*dt*vel;movingTarget=null;}
- const limit=app.room==='plaza'?165:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);
- if(state3d.avatar){state3d.avatar.position.set(app.x,0,app.z);state3d.avatar.children[0].rotation.z=(lx||lz)?Math.sin(t*.016)*.045:0;}
- const camera=state3d.camera,yaw=app.cameraYaw;const target=new THREE.Vector3(app.x+Math.sin(yaw)*app.cameraDist*.5,app.room==='plaza'?app.cameraDist*.78:Math.max(9,app.cameraDist*.42),app.z+Math.cos(yaw)*app.cameraDist);camera.position.lerp(target,.09);camera.lookAt(app.x,2.25,app.z);
- if(t-lastSent>90){send({type:'move',x:app.x,z:app.z});lastSent=t;}
- if(app.room==='plaza'){app.near=landmarks.filter(b=>b.room).find(b=>Math.hypot(app.x-b.x,app.z-(b.z+b.d/2+5))<19);if(app.near){$('#nearby').hidden=false;$('#nearby').textContent='Press E · Enter '+app.near.name+(app.near.room in questionRoom?' ('+questionRoom[app.near.room]+')':'')}else $('#nearby').hidden=true;}else{const exitNear=app.z>7;$('#nearby').hidden=!exitNear;if(exitNear)$('#nearby').textContent='Press E · Return to campus';}
- $('#position').textContent=Math.round(app.x)+', '+Math.round(app.z);syncActors(t);}
+function canStand(x,z){if(app.room!=='plaza')return true;for(const b of landmarks){if(Math.abs(x-b.x)<b.w/2+1.25 && Math.abs(z-b.z)<b.d/2+1.25)return false;}return true;}
+function update(dt,t){if(!app.joined)return;
+ const s=keyset;let lx=0,lz=0;
+ if(s.has('w')||s.has('arrowup')||touchKey==='up')lz--;
+ if(s.has('s')||s.has('arrowdown')||touchKey==='down')lz++;
+ if(s.has('a')||s.has('arrowleft')||touchKey==='left')lx--;
+ if(s.has('d')||s.has('arrowright')||touchKey==='right')lx++;
+ const moving=!!(lx||lz);if(moving){const d=Math.hypot(lx,lz);lx/=d;lz/=d;}
+ const c=Math.cos(app.cameraYaw),sn=Math.sin(app.cameraYaw);
+ const targetSpeed=(app.room==='plaza'?32:9)*(s.has('shift')?1.65:1);
+ const vx=(lx*c+lz*sn)*targetSpeed,vz=(lz*c-lx*sn)*targetSpeed;
+ const smoothing=1-Math.exp(-13*dt);
+ app.velocityX=THREE.MathUtils.lerp(app.velocityX,vx,smoothing);
+ app.velocityZ=THREE.MathUtils.lerp(app.velocityZ,vz,smoothing);
+ let nx=app.x+app.velocityX*dt,nz=app.z+app.velocityZ*dt;
+ const limit=app.room==='plaza'?164:11;
+ nx=THREE.MathUtils.clamp(nx,-limit,limit);nz=THREE.MathUtils.clamp(nz,-limit,limit);
+ if(canStand(nx,app.z))app.x=nx;else app.velocityX=0;
+ if(canStand(app.x,nz))app.z=nz;else app.velocityZ=0;
+ if(app.jumpVelocity!==0||app.jump>0){app.jump+=app.jumpVelocity*dt;app.jumpVelocity-=22*dt;if(app.jump<0){app.jump=0;app.jumpVelocity=0;}}
+ if(state3d.avatar){state3d.avatar.position.set(app.x,app.jump,app.z);state3d.avatar.children[0].rotation.z=moving?Math.sin(t*.015)*.06:0;if(moving)state3d.avatar.rotation.y=Math.atan2(app.velocityX,app.velocityZ)+Math.PI;}
+ const camera=state3d.camera,yaw=app.cameraYaw;
+ const horizontal=app.cameraDist*Math.cos(app.cameraPitch),height=4+app.cameraDist*Math.sin(app.cameraPitch);
+ const target=new THREE.Vector3(app.x+Math.sin(yaw)*horizontal,height+app.jump,app.z+Math.cos(yaw)*horizontal);
+ camera.position.lerp(target,1-Math.exp(-8*dt));camera.lookAt(app.x,2.7+app.jump,app.z);
+ if(t-lastSent>110){send({type:'move',x:app.x,z:app.z});lastSent=t;}
+ if(app.room==='plaza'){
+  app.near=landmarks.filter(b=>b.room).find(b=>Math.hypot(app.x-b.x,app.z-(b.z+b.d/2+5))<16);
+  $('#nearby').hidden=!app.near;
+  if(app.near)$('#nearby').textContent='E · Enter '+app.near.name+(app.near.room in questionRoom?' · '+questionRoom[app.near.room]:'');
+ }else{
+  const exitNear=app.z>7;$('#nearby').hidden=!exitNear;
+  if(exitNear)$('#nearby').textContent='E · Return to campus';
+ }
+ if(state3d.npcs.length){for(let i=0;i<state3d.npcs.length;i++){const npc=state3d.npcs[i];if(npc.name==='Professor Nova'){npc.mesh.rotation.y=Math.sin(t*.0005)*.15;continue;}npc.mesh.position.x=npc.x+Math.sin(t*.00035+i)*npc.roam;npc.mesh.position.z=npc.z+Math.cos(t*.00035+i)*npc.roam*.65;npc.mesh.rotation.y=Math.atan2(Math.cos(t*.00035+i),-Math.sin(t*.00035+i));}}
+ $('#position').textContent=Math.round(app.x)+', '+Math.round(app.z);
+ syncActors(t);
+}
 function loop(t){const dt=Math.min(.06,(t-(lastAt||t))/1000);lastAt=t;update(dt,t);if(state3d.renderer&&state3d.scene)state3d.renderer.render(state3d.scene,state3d.camera);drawMinimap();requestAnimationFrame(loop);}
 function drawMinimap(){const c=$('#minimap'),g=c.getContext('2d'),W=c.width,H=c.height;g.fillStyle='#335f56';g.fillRect(0,0,W,H);const tx=x=>(x+176)/352*W,tz=z=>(z+135)/270*H;g.strokeStyle='#a9bda3';g.lineWidth=3;for(const x of [-112,-53,18,70,116]){g.beginPath();g.moveTo(tx(x),0);g.lineTo(tx(x),H);g.stroke();}for(const z of [-88,-22,33,74]){g.beginPath();g.moveTo(0,tz(z));g.lineTo(W,tz(z));g.stroke();}
  for(const b of landmarks){g.fillStyle=b.room?'#ead399':'#acc4ae';g.fillRect(tx(b.x-b.w/2),tz(b.z-b.d/2),b.w/352*W,b.d/270*H);g.font='bold 8px system-ui';g.textAlign='center';g.fillStyle='#153c37';g.fillText(b.abbr,tx(b.x),tz(b.z)+2)}if(app.room==='plaza'){g.fillStyle='#ffb593';g.beginPath();g.arc(tx(app.x),tz(app.z),5,0,2*Math.PI);g.fill();g.lineWidth=1.5;g.strokeStyle='#173c37';g.stroke();}else{g.fillStyle='#f7ebce';g.font='bold 14px system-ui';g.fillText(rooms[app.room].name,W/2,H/2)}}

@@ -1,43 +1,86 @@
-# GeeGeeVerse 3D Alpha (v0.3)
+# GeeGeeVerse v0.4 · Campus Adventure
 
-**A 3D third-person multiplayer university playground for the browser.** A campus-inspired uOttawa map with 18 recognizable labeled buildings, walkable paths, classrooms, a 3D question board, a shared solution wall, chat/forum, customizable low-poly avatar and optional, peer-to-peer voice chat.
+An early, playable university-themed **3D browser game** with live multiplayer and a complete solo learning prototype. This project is **independent and unofficial**. The campus is an imaginary, simplified layout inspired by uOttawa landmarks, not a georeferenced architectural reconstruction.
 
-## Try it locally (developer/owner)
+## What's new in v0.4
 
-Requirements: Node.js 22+, modern browser with WebGL and internet connection for the Three.js module (loaded from jsDelivr). On Windows, double-click `start-windows.bat`. Or use:
+- Redesigned light, friendly, game-first UI, clearer directories and quests, improved mobile controls.
+- Camera-relative WASD/arrow-key movement, smooth acceleration, Shift sprint, Space jump, drag-to-orbit camera, wheel zoom, simple wall collisions.
+- Stylized campus with named buildings, benches, lampposts, animated NPC students, and classroom portals; quickly enter any room through the directory.
+- **Solo mode** works even when nobody else is connected: meet scripted professors, complete CHM 1311, BIO 1140, PSY 1101, and MAT 1320 question sets with hints and explanations.
+- **CHM 1311 lab** guides learners through four interactive gravity-filtration choices. This is a simplified educational simulation, not a realistic lab physics simulator.
+- An XP quest book and a customizable personal dorm study nook.
+- Solo XP, quest completion, lesson mastery and dorm colour are stored in **this browser's localStorage**. They don't follow you to another device and are not synchronized between players.
+- Previous features retained: multiplayer avatars and rooms, shared classroom solution wall, live room text chat, campus posts, optional experimental WebRTC voice.
 
-```bash
+## Fastest route: update your existing GitHub and Render site
+
+1. Unzip this archive onto your computer.
+2. Open the extracted `GeeGeeVerse-Playful-3D-v04` folder. Select its **contents** (not the ZIP or enclosing folder).
+3. Open your existing GitHub repository `khalil477/geegeeverse` and use **Add file → Upload files**. Drag the contents (including `public/`, `package.json`, `server.mjs`, and `render.yaml`) into GitHub. Confirm replacing files with the same names if asked, then click **Commit changes**.
+4. Render normally auto-deploys changes from the `main` branch. If it doesn't: Render → GeeGeeVerse → Manual Deploy → Deploy latest commit.
+5. Keep your existing Render `INVITE_CODE` environment variable. Do **not** commit the secret to GitHub.
+6. When the deployment says **Live**, refresh `https://geegeeverse.onrender.com` (hard refresh with Ctrl+Shift+R if the old UI persists).
+
+The new static assets use `/solo.js` and `/playful.css`; verify they exist in your GitHub `public/` folder after upload.
+
+## Run locally (optional)
+
+Requires Node.js 20.11+.
+
+```sh
 npm start
 ```
 
-Open `http://localhost:3030`, enter a nickname and choose an outfit. Walk using **WASD / arrow keys**, drag to rotate your view, scroll to zoom. Walk near a glowing building doorway and press **E**. You can also choose any classroom using the left-hand directory. Use two browser windows to test multiplayer. `npm test` runs a backend integration test without third-party npm dependencies.
+Open `http://localhost:3030`. If production mode is set, the server requires an `INVITE_CODE` of at least 12 characters. To test with friends use private hosting and an invite code; for example, on Render set `NODE_ENV=production` and `INVITE_CODE` in Environment Variables.
 
-## Deploy privately as a website
+## Controls
 
-This is a **server-rendered static UI + single Node.js WebSocket server**. Deploy the complete repository using `render.yaml` as a Render Blueprint (or another hosting service that supports persistent Node.js WebSockets). Set `NODE_ENV=production` and choose a long random `INVITE_CODE` as a secret environment variable. The server refuses to start in production without a 12+ character invite code. Your players then open the HTTPS URL in a browser — **no download**.
+- WASD or arrow keys: walk relative to camera
+- Hold Shift: sprint
+- Space: jump
+- Drag on 3D scene: turn camera
+- Mouse wheel: zoom
+- E near a doorway: enter the building / leave the classroom
+- F near the professor in a class: talk
+- Map button: view or hide campus minimap
+- Class directory: teleport directly to any available class
+- Mobile: touch movement pad, E, jump and sprint toggle
 
-On Render, the owner puts the source code in a Git repository, creates a Blueprint from that repo, sets `INVITE_CODE` in environment variables and deploys. Use HTTPS, not a standalone static-page host: multiplayer and WebRTC signaling depend on the Node server.
+## Activity walkthrough
 
-### Example playable loop
+1. Enter the campus and select CHM 1311 from the left directory (or walk to the STEM door).
+2. Press F close to Professor Nova, or use **Talk** in the Learn tab.
+3. Answer the three Board problems; each has a hint and an explanation.
+4. Change to **Virtual lab** and complete the four filtration stages.
+5. Select **My Study Nook** in the directory and pick a desk colour.
+6. Open **✨ Quests** at the top to view your saved progress.
 
-1. Walk through an approximately laid-out section of uOttawa, with visual landmarks such as Tabaret, Morisset, UCU, STEM, CRX, Desmarais, FSS, and SITE.
-2. Enter **STEM / CHM 1311** with E at the front doorway, or choose it from the directory.
-3. Read a chemistry question on the large in-world board and in the classroom panel. Choose an answer to see explanatory feedback.
-4. Post a reasoning step or hint to the **shared solution wall**. Other players in the same room see your comment immediately.
-5. Chat or voluntarily join room voice to discuss the problem, then visit Biology, Psychology or Calculus rooms.
+## Tests
 
-## Reality check / limits
+```sh
+npm test
+```
 
-- This is **real browser 3D** using Three.js. The low-poly geometry, signboards and avatar are original placeholder assets, not a Roblox-quality finished 3D world.
-- Building arrangement is a **stylized approximation** using public uOttawa building information, **not a georeferenced or 1:1 replica**. Neither building interiors nor the course-to-room assignments represent actual class schedules. Do not use it for navigation.
-- Three.js loads from a CDN in the browser and requires an internet connection. For fully offline play, self-host the open-source Three.js library after obtaining it from the official distribution.
-- Voice chat uses **WebRTC and browser permission**, is **off by default**, works only with other volunteers in your current room and currently uses a small peer-to-peer mesh capped at eight. Uses a public STUN server; some networks will need a TURN relay. Voice may fail across restrictive networks. There is **no voice recording feature**.
-- **Not ready for a public release**, especially to minors: add reporting, blocking, abuse moderation, verified accounts, anti-spam safeguards, accessibility improvements, privacy documents and security testing before inviting strangers.
-- Posts save only to a local JSON file; free cloud hosting may lose the file after a restart. Shared whiteboard comments, XP, player positions and chat exist only in server memory. Add an external database for persistence.
-- No official university affiliation. No official curriculum assignments or exam questions are imported; practice questions are fictional.
+Includes a WebSocket multiplayer smoke test (joining, classrooms, solution wall, quiz XP, WebRTC signaling). Solo lessons were tested separately in headless browser DOM tests. Full WebGL rendering and live microphone-to-microphone audio have **not** been verified in this environment.
 
-## Verified
+## Important limitations / safety
 
-`npm test` tests that two players can join the same classroom, send a shared board note, receive validated question feedback, opt into voice, and exchange WebRTC signaling messages. Frontend 3D graphics and browser microphone access must be checked in a real browser when deployed; backend tests are **not** visual/voice-call acceptance tests.
+- This is a **stylized prototype**, not a high-fidelity Roblox-level world, an accurate uOttawa campus map, or a commercial game.
+- NPC dialogue is scripted, not a generative AI professor. Lesson problems are practice content, not university-approved curricula.
+- Quest progress is saved only in the current browser's localStorage; clearing browser data resets it.
+- Render Free can sleep when inactive. Posts written to an ephemeral server filesystem may be lost across deployments; add a real database before public launch.
+- Voice chat is experimental and opt-in. Browser permission is requested before microphone use. WebRTC currently uses STUN without a TURN relay, so it may fail on some networks. Build reporting, blocking, mute controls, user authentication, safeguards and moderation before any wider student launch.
+- The invite code limits beta access, but is not a robust replacement for user identity or moderation.
+- External 3D engine loaded through jsDelivr; players need internet to load it. If blocked, the game may show the loading screen.
 
-Sources for approximate campus building names/locations: [Official uOttawa Campus Maps](https://www.uottawa.ca/about-us/administration-services/facilities/campus-maps) and [uOttawa classrooms listing](https://www.uottawa.ca/about-us/explore-classrooms-campus).
+## Files
+
+- `server.mjs`: Node zero-dependency HTTP + WebSocket server, room messages, chat, posts, voice signaling.
+- `public/world3d.js`: Three.js world, camera, player movement, NPCs, audio peer connections.
+- `public/solo.js`: solo activities, scripted mentor hints, lab stages, quests and local progress.
+- `public/playful.css`: updated game-first user interface.
+- `public/index.html`: page and accessible fallback navigation.
+- `tests/server.test.mjs`: multiplayer smoke test.
+
+Built as a private, experimental learning-world alpha.
