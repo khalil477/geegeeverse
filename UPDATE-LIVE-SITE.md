@@ -1,15 +1,10 @@
-# Update your existing live GeeGeeVerse (Render)
+# Updating your currently-live GeeGeeVerse
 
-You **do not need a new Render web service**.
+1. Keep your current Render web service, GitHub repository, and secret INVITE_CODE.
+2. Download and **extract** `GeeGeeVerse-Geographic-Campus-v0.5.zip`.
+3. Upload the files **inside** that extracted folder via GitHub Add file → Upload files to `khalil477/geegeeverse`. Preserve subfolders; replace matching filenames. Do not upload the ZIP file alone.
+4. Commit changes. Wait for Render auto deploy to show `Live`.
+5. Reload https://geegeeverse.onrender.com and enter your existing invite code.
+6. Check the bottom map status. If it says `City footprints loaded`, real GIS footprint geometry loaded. If it says `Approximate fallback`, the City API could not be reached and the visible shapes are NOT real footprints.
 
-1. Download and extract the `GeeGeeVerse-Playful-3D-v04.zip` project.
-2. In the extracted folder, select everything inside: `public/`, `tests/`, `package.json`, `server.mjs`, `README.md`, `render.yaml`, etc.
-3. Go to your existing GitHub repo `https://github.com/khalil477/geegeeverse`.
-4. Click **Add file → Upload files** and drag in the extracted project files, preserving folders. Commit changes to `main`.
-5. Render should deploy automatically from the new commit. Or trigger **Manual Deploy → Deploy latest commit** in your existing `geegeeverse` service.
-6. Leave your Render invite-code environment variable as it is, and refresh the live address `https://geegeeverse.onrender.com` after the new deploy succeeds.
-7. If the game shows old features, hard-refresh with Ctrl+Shift+R.
-
-**What to try:** Enter as an avatar, use WASD/Shift/Space to move, find CHM 1311, talk to Professor Nova, complete board questions and the virtual lab, open the quest book, then decorate your study nook.
-
-**Before inviting others:** Voice is experimental and does not have full moderation/report tools yet; use only with trusted invitees. This remains a stylized uOttawa-inspired map, not an accurate campus replica.
+You are not changing the login/rooms/community system here—this is the first geographic map layer. No promise of pixel-identical building facades, roof shapes, trees, or interiors. The map is still a work in progress.

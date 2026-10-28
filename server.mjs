@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, join, extname } from 'node:path';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { getCampusGeodata } from './campus-data.mjs';
 
 const PORT = Number(process.env.PORT) || 3030;
 const ROOT = resolve(import.meta.dirname, 'public');
@@ -68,7 +69,7 @@ function handle(p,m){if(!m||typeof m!=='object')return;
     send(p.socket,{type:'welcome',id:p.id,players:roomPlayers(p.room),posts:db.posts.slice(-80).reverse(),questions:questions.map(({answer,...q})=>q),counts:roomsCount(),xp:p.xp,board:[]});publishState('plaza');if(oldRoom&&oldRoom!=='plaza')publishState(oldRoom);return;
   }
   if(!p.ready)return;
-  if(m.type==='move'&&allowed(p,'move',55)){const x=Number(m.x),z=Number(m.z);if(!Number.isFinite(x)||!Number.isFinite(z))return;const bound=p.room==='plaza'?170:12;p.x=Math.max(-bound,Math.min(bound,x));p.z=Math.max(-bound,Math.min(bound,z));broadcast(p.room,{type:'moved',id:p.id,x:p.x,z:p.z},p.socket);}
+  if(m.type==='move'&&allowed(p,'move',55)){const x=Number(m.x),z=Number(m.z);if(!Number.isFinite(x)||!Number.isFinite(z))return;const bound=p.room==='plaza'?610:12;p.x=Math.max(-bound,Math.min(bound,x));p.z=Math.max(-bound,Math.min(bound,z));broadcast(p.room,{type:'moved',id:p.id,x:p.x,z:p.z},p.socket);}
   else if(m.type==='room'&&allowed(p,'room',650)&&ROOMS.includes(m.room)) {const old=p.room;p.room=m.room;p.voice=false;p.x=0;p.z=2;send(p.socket,{type:'room',room:p.room,players:roomPlayers(p.room),board:whiteboards[p.room]||[]});publishState(old);publishState(p.room);}
   else if(m.type==='chat'&&allowed(p,'chat',950)){const body=clean(m.body,220);if(!body)return;broadcast(p.room,{type:'chat',id:randomUUID(),author:p.name,color:p.color,body,at:Date.now()},null);}
   else if(m.type==='post'&&allowed(p,'post',12000)){const body=clean(m.body,340);if(body.length<5)return;const course=['General','CHM 1311','BIO 1140','PSY 1101'].includes(m.course)?m.course:'General';const post={id:randomUUID(),course,author:p.name,body,likes:0,likedBy:[],created:Date.now(),replies:[],demo:false};db.posts.push(post);db.posts=db.posts.slice(-150);save();for(const c of clients.values())if(c.ready)send(c.socket,{type:'post',post});}
@@ -97,7 +98,7 @@ function handle(p,m){if(!m||typeof m!=='object')return;
   }
   else if(m.type==='quiz'&&allowed(p,'quiz',450)){const q=questions.find(q=>q.id===m.id);if(!q||!Number.isInteger(m.choice))return;const correct=q.answer===m.choice;let reward=0;if(correct&&!p.completed.has(q.id)){p.completed.add(q.id);p.xp+=25;reward=25;}send(p.socket,{type:'quizResult',id:q.id,choice:m.choice,correct,why:q.why,reward,xp:p.xp});}
 }
-const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
 const server=http.createServer(async(req,res)=>{try{
   if (req.url==='/health' && req.method==='GET') {res.writeHead(200,{'content-type':'text/plain','cache-control':'no-store'}).end('ok');return;}
   if (req.url==='/enter' && req.method==='POST' && inviteCookie) {
@@ -111,6 +112,10 @@ const server=http.createServer(async(req,res)=>{try{
     res.writeHead(401,gateHeaders).end(gatePage(true));return;
   }
   if (!invited(req)) {res.writeHead(403,gateHeaders).end(gatePage(false));return;}
+  if (req.url==='/api/campus-geo' && req.method==='GET') {
+    const json=JSON.stringify(await getCampusGeodata());
+    res.writeHead(200,{'content-type':'application/json; charset=utf-8','cache-control':'private, max-age=3600','x-content-type-options':'nosniff'}).end(json);return;
+  }
   if (req.method!=='GET' && req.method!=='HEAD'){res.writeHead(405).end();return;}
   const url=new URL(req.url,'http://localhost');const pathname=decodeURIComponent(url.pathname);const rel=pathname==='/'?'/index.html':pathname;if(!/^\/[a-zA-Z0-9_./-]+$/.test(rel)||rel.includes('..')){res.writeHead(400).end();return;}const path=resolve(ROOT,'.'+rel);if(!path.startsWith(ROOT+'/')){res.writeHead(403).end();return;}const buf=await readFile(path);res.writeHead(200,{'content-type':mime[extname(path)]||'application/octet-stream','cache-control':'no-cache','x-content-type-options':'nosniff','content-security-policy':"default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'"});res.end(buf);}catch(err){res.writeHead(404,{'content-type':'text/plain'}).end('Not found');}});
 server.on('upgrade',(req,socket)=>{if(req.url!=='/ws'||!invited(req)){socket.destroy();return;}const key=req.headers['sec-websocket-key'];if(!key||!/^[A-Za-z0-9+/]{22}==$/.test(key)){socket.destroy();return;}const accept=createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');const p={id:randomUUID(),socket,buffer:Buffer.alloc(0),ready:false,room:'plaza',name:'Guest',color:'coral',hair:'short',x:0,z:2,xp:0,voice:false,completed:new Set(),limits:new Map()};clients.set(socket,p);socket.on('data',chunk=>{try{decodeFrames(p,chunk);}catch{socket.destroy();}});const cleanup=()=>{if(!clients.has(socket))return;clients.delete(socket);if(p.ready)publishState(p.room);};socket.on('close',cleanup);socket.on('end',cleanup);socket.on('error',cleanup);});

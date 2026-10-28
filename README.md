@@ -1,86 +1,50 @@
-# GeeGeeVerse v0.4 · Campus Adventure
+# GeeGeeVerse 3D Geographic Campus — v0.5 (first data-driven mapping pass)
 
-An early, playable university-themed **3D browser game** with live multiplayer and a complete solo learning prototype. This project is **independent and unofficial**. The campus is an imaginary, simplified layout inspired by uOttawa landmarks, not a georeferenced architectural reconstruction.
+The **new map replaces the random positions from v0.4** with georeferenced, named university building centres. Its building, sidewalk and pathway geometry are fetched from **City of Ottawa Open Data** at runtime, passed through the Node server, projected into metres and rendered in Three.js. No API key is needed for these public GIS layers.
 
-## What's new in v0.4
+## Important accuracy limitations
 
-- Redesigned light, friendly, game-first UI, clearer directories and quests, improved mobile controls.
-- Camera-relative WASD/arrow-key movement, smooth acceleration, Shift sprint, Space jump, drag-to-orbit camera, wheel zoom, simple wall collisions.
-- Stylized campus with named buildings, benches, lampposts, animated NPC students, and classroom portals; quickly enter any room through the directory.
-- **Solo mode** works even when nobody else is connected: meet scripted professors, complete CHM 1311, BIO 1140, PSY 1101, and MAT 1320 question sets with hints and explanations.
-- **CHM 1311 lab** guides learners through four interactive gravity-filtration choices. This is a simplified educational simulation, not a realistic lab physics simulator.
-- An XP quest book and a customizable personal dorm study nook.
-- Solo XP, quest completion, lesson mastery and dorm colour are stored in **this browser's localStorage**. They don't follow you to another device and are not synchronized between players.
-- Previous features retained: multiplayer avatars and rooms, shared classroom solution wall, live room text chat, campus posts, optional experimental WebRTC voice.
+This is an architectural **massing map**, not a fully identical/photorealistic recreation of uOttawa. When the City GIS service works, horizontal building footprints and walking-surface polygons come from City of Ottawa surveying/topographic data. Heights are **estimates**, not measured. Windows, roof structures, signage, entrance points, interiors, landscaping, and classroom placements are not surveyed replicas. Building centres are based on openly listed geocoordinates and may not represent exact entrance coordinates. When the City service fails, the UI explicitly shows an **approximate fallback**, with rectangular buildings at georeferenced centres. No fictional detail is presented as surveyed.
 
-## Fastest route: update your existing GitHub and Render site
+The underlying v0.4 features are preserved: multiplayer lobby and room chat, optional beta voice, virtual professors, CHM 1311/ BIO 1140 / PSY 1101 / MAT 1320 learning, quizzes, solo quests and browser-saved XP. Testing real campus geometry needs internet access from your hosting server.
 
-1. Unzip this archive onto your computer.
-2. Open the extracted `GeeGeeVerse-Playful-3D-v04` folder. Select its **contents** (not the ZIP or enclosing folder).
-3. Open your existing GitHub repository `khalil477/geegeeverse` and use **Add file → Upload files**. Drag the contents (including `public/`, `package.json`, `server.mjs`, and `render.yaml`) into GitHub. Confirm replacing files with the same names if asked, then click **Commit changes**.
-4. Render normally auto-deploys changes from the `main` branch. If it doesn't: Render → GeeGeeVerse → Manual Deploy → Deploy latest commit.
-5. Keep your existing Render `INVITE_CODE` environment variable. Do **not** commit the secret to GitHub.
-6. When the deployment says **Live**, refresh `https://geegeeverse.onrender.com` (hard refresh with Ctrl+Shift+R if the old UI persists).
+## Updated map controls
 
-The new static assets use `/solo.js` and `/playful.css`; verify they exist in your GitHub `public/` folder after upload.
+- Walk with WASD or arrow keys; Shift to sprint, Space to jump; mouse drag rotates the camera and wheel changes zoom.
+- The **Real map** button opens a north-up mini map drawn from the same city shapes as the 3D scene.
+- The **REAL CAMPUS LANDMARKS** section lists buildings with known geocoordinates and lets you move near them. For the initial beta, this is fast travel, not a real-world routing engine.
+- Green circular classroom portals are GAMEPLAY markers only, placed near the approximate building centre, not actual uOttawa entrances. Press E when near a portal to enter a fictional learning room.
+- The in-game status always reports whether City footprint data loaded or whether a fallback is displayed.
 
-## Run locally (optional)
+## GIS data source and attribution
 
-Requires Node.js 20.11+.
+**City of Ottawa** (Open Data, TopographicMapping MapServer) Building Footprints layer 3, Sidewalks layer 5, Pathways layer 6.
+https://maps.ottawa.ca/arcgis/rest/services/TopographicMapping/MapServer
+https://ottawa.ca/en/city-hall/get-know-your-city/open-data
 
-```sh
-npm start
-```
+Site/location cross-checks: University of Ottawa official campus map https://www.uottawa.ca/about-us/administration-services/facilities/campus-maps and building centres from OpenStreetMap (ODbL) via Mapcarta (not bulk imported as shape data). Credit OpenStreetMap contributors for referenced point locations https://www.openstreetmap.org/copyright.
 
-Open `http://localhost:3030`. If production mode is set, the server requires an `INVITE_CODE` of at least 12 characters. To test with friends use private hosting and an invite code; for example, on Render set `NODE_ENV=production` and `INVITE_CODE` in Environment Variables.
+## Run locally
 
-## Controls
+Requirements: Node.js 20+ and internet access for Three.js CDN and City GIS.
+`npm start` and visit http://localhost:3030.
+Production requires `NODE_ENV=production` and a 12+ character `INVITE_CODE`.
+Check locally: `npm test`.
 
-- WASD or arrow keys: walk relative to camera
-- Hold Shift: sprint
-- Space: jump
-- Drag on 3D scene: turn camera
-- Mouse wheel: zoom
-- E near a doorway: enter the building / leave the classroom
-- F near the professor in a class: talk
-- Map button: view or hide campus minimap
-- Class directory: teleport directly to any available class
-- Mobile: touch movement pad, E, jump and sprint toggle
+## Deploy to existing GitHub/Render
 
-## Activity walkthrough
+1. Extract this ZIP. Upload **all the extracted files and folders**, not the ZIP, to the root of your existing GitHub `geegeeverse` repository, replacing matching files.
+2. Render should automatically build latest commit. Existing Render settings remain: Node; build `npm install --omit=dev`, start `npm start`; `INVITE_CODE` should remain private.
+3. Visit the live game and verify the bottom map status reads **City footprints loaded**. If it reads **Approximate fallback**, check the server's access to City of Ottawa GIS and try again later.
 
-1. Enter the campus and select CHM 1311 from the left directory (or walk to the STEM door).
-2. Press F close to Professor Nova, or use **Talk** in the Learn tab.
-3. Answer the three Board problems; each has a hint and an explanation.
-4. Change to **Virtual lab** and complete the four filtration stages.
-5. Select **My Study Nook** in the directory and pick a desk colour.
-6. Open **✨ Quests** at the top to view your saved progress.
+New files include `campus-data.mjs`, `public/geo-utils.mjs` and `tests/geo.test.mjs`. Existing learning and multiplayer functions remain.
 
-## Tests
+## Map development roadmap
 
-```sh
-npm test
-```
+1. Validate individual footprints and course building entrances on the official uOttawa map.
+2. Integrate measured LiDAR heights (City LOD1 datasets), visual details from approved reference photos.
+3. Build detailed outdoor assets manually, prioritize Tabaret, Morisset, STEM, UCU.
+4. Build accurate interiors only from authorized floorplans/measurements; the current rooms are fictional learning spaces.
+5. Add automatic route finding, accessible routes, higher-quality animations, voice moderation and persistence before public launch.
 
-Includes a WebSocket multiplayer smoke test (joining, classrooms, solution wall, quiz XP, WebRTC signaling). Solo lessons were tested separately in headless browser DOM tests. Full WebGL rendering and live microphone-to-microphone audio have **not** been verified in this environment.
-
-## Important limitations / safety
-
-- This is a **stylized prototype**, not a high-fidelity Roblox-level world, an accurate uOttawa campus map, or a commercial game.
-- NPC dialogue is scripted, not a generative AI professor. Lesson problems are practice content, not university-approved curricula.
-- Quest progress is saved only in the current browser's localStorage; clearing browser data resets it.
-- Render Free can sleep when inactive. Posts written to an ephemeral server filesystem may be lost across deployments; add a real database before public launch.
-- Voice chat is experimental and opt-in. Browser permission is requested before microphone use. WebRTC currently uses STUN without a TURN relay, so it may fail on some networks. Build reporting, blocking, mute controls, user authentication, safeguards and moderation before any wider student launch.
-- The invite code limits beta access, but is not a robust replacement for user identity or moderation.
-- External 3D engine loaded through jsDelivr; players need internet to load it. If blocked, the game may show the loading screen.
-
-## Files
-
-- `server.mjs`: Node zero-dependency HTTP + WebSocket server, room messages, chat, posts, voice signaling.
-- `public/world3d.js`: Three.js world, camera, player movement, NPCs, audio peer connections.
-- `public/solo.js`: solo activities, scripted mentor hints, lab stages, quests and local progress.
-- `public/playful.css`: updated game-first user interface.
-- `public/index.html`: page and accessible fallback navigation.
-- `tests/server.test.mjs`: multiplayer smoke test.
-
-Built as a private, experimental learning-world alpha.
+*Independent student project, not endorsed or operated by uOttawa.*
