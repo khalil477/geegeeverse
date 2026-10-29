@@ -60,7 +60,13 @@ function heading(root,title,sub){root.append(el('div','solo-eyebrow','✦ PERSON
 function btn(text,cl,action){const b=el('button',cl,text);b.type='button';b.addEventListener('click',action);return b}
 function render(){if(!data)return;updateXP();document.dispatchEvent(new Event('ggv:learnupdate'));const root=document.querySelector('#solo-panel');if(!root)return;root.replaceChildren();const c=courses[current];
  if(current==='plaza'){heading(root,'Your campus adventure','Explore at your own pace. Even if nobody else is online, your quests are ready.');const card=el('div','solo-feature');card.append(el('span','solo-emoji','🧪'),el('b',null,'Start your chemistry story'),el('p',null,'Meet Professor Nova in the STEM complex, solve problems and run your first virtual lab.'));card.append(btn('Go to CHM 1311 →','solo-primary',()=>api.goRoom('chm1311')));root.append(card);root.append(btn('✨ Open my quest book','solo-secondary',()=>toggleQuests(true)));return}
- if(current==='tabaret'){
+ if(current==='tabaret112'){
+  heading(root,'Huguette Labelle Hall · TBT 112','A historical university event space, modelled from public uOttawa photos.');
+  root.append(el('p','solo-blurb','Explore the stage, carved white pilasters, stained-glass-style windows, coffered ceiling, upper balcony and event seating. The room is approximately 288 m² in this game; its layout is estimated.'));
+  root.append(btn('← Return to Tabaret Rotunda','solo-primary',()=>api.goRoom('tabaret')));
+  root.append(btn('✨ View quest progress','solo-secondary',()=>toggleQuests(true)));return;
+  }
+  if(current==='tabaret'){
   heading(root,'Explore Tabaret Hall','Visit a walkable Rotunda inspired by official uOttawa photos.');
   root.append(el('p','solo-blurb','Look for cream columns, the glass dome, circular upper railings, tiled floor and curved benches. This public-area study is not an exact floor plan.'));
   root.append(btn('← Return to Tabaret Lawn','solo-primary',()=>api.goRoom('plaza')));
