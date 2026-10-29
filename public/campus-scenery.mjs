@@ -4,6 +4,8 @@
  * Only illustrative geometry is generated; real entrances and paths are not surveyed.
  * No keyboard handlers, networking, avatars, classroom logic, or server code here.
  */
+import { buildTabaretExterior } from './tabaret-architecture.mjs';
+
 export function buildCampusScenery({THREE, scene, landmarks, square, landingOutside, sign}) {
   if (!THREE || !scene || !Array.isArray(landmarks) || !square) throw new Error('Campus scenery needs Three.js and landmark positions');
   scene.background = new THREE.Color(0xb5ddf2);
@@ -48,6 +50,12 @@ export function buildCampusScenery({THREE, scene, landmarks, square, landingOuts
   if (north) path(hub.x,hub.z,north.x,north.z,8.5);
   if (east) path(hub.x,hub.z,east.x,east.z,8.5);
 
+  // Approximate Tabaret Lawn location; exact landscape boundaries remain to survey.
+  const tbt=landmarks.find(b=>b.id==='tbt');
+  if(tbt){
+    box(62,.16,58,tbt.x+tbt.d/2+40,-.13,tbt.z,0x78ae7c);
+    path(tbt.x+tbt.d/2+8,tbt.z,tbt.x+tbt.d/2+70,tbt.z,6.5,0xd4ccbe);
+  }
   const exterior=[];
   for (const b of landmarks) {
     const h = b.id==='mrt' ? Math.max(b.h,48) : b.h;
@@ -57,29 +65,26 @@ export function buildCampusScenery({THREE, scene, landmarks, square, landingOuts
     box(w,h,d,0,h/2,0,b.color,group,true);
     box(w+1.5,.95,d+1.5,0,h+.46,0,b.kind==='heritage'?0x685452:0x405c62,group,true);
     box(w+1.8,.38,d+1.8,0,.26,0,0xddd3c3,group);
-    const front=d/2+.13;
-    const rows=Math.max(2,Math.min(8,Math.floor((h-2)/5.8)));
-    const cols=Math.max(3,Math.floor(w/7.2));
-    for(let floor=0;floor<rows;floor++){
-      for(let col=0;col<cols;col++){
-        const wx=-w/2+(col+1)*w/(cols+1);
-        const wy=5.9+floor*(h-9)/Math.max(1,rows-1);
-        if(wy>h-2)continue;
-        if(floor===0&&Math.abs(wx)<4)continue;
-        box(3.4,2.9,.16,wx,wy,front,0x527e97,group);
-        // A narrow window trim adds definition in the third-person camera.
-        box(3.65,.17,.19,wx,wy+1.55,front+.04,0xe0e2da,group);
+    if(b.id==='tbt'){
+      // Real reference: east-facing Tabaret Lawn facade, six columns, broad staircase.
+      // Estimated facade dimensions still need architectural measurements.
+      buildTabaretExterior({THREE,group,box,material,width:w,height:h,depth:d});
+    }else{
+      const front=d/2+.13;
+      const rows=Math.max(2,Math.min(8,Math.floor((h-2)/5.8)));
+      const cols=Math.max(3,Math.floor(w/7.2));
+      for(let floor=0;floor<rows;floor++){
+        for(let col=0;col<cols;col++){
+          const wx=-w/2+(col+1)*w/(cols+1);
+          const wy=5.9+floor*(h-9)/Math.max(1,rows-1);
+          if(wy>h-2)continue;
+          if(floor===0&&Math.abs(wx)<4)continue;
+          box(3.4,2.9,.16,wx,wy,front,0x527e97,group);
+          box(3.65,.17,.19,wx,wy+1.55,front+.04,0xe0e2da,group);
+        }
       }
-    }
-    box(6.4,5.6,.35,0,2.8,front+.25,b.room?0x245b55:0x3c4d55,group);
-    box(8,.65,2.7,0,6,front+1,0xded5c4,group);
-    if(b.kind==='heritage'){
-      // Tabaret's visible classical columns and cornice.
-      for(let k=-3;k<=3;k++){
-        const col=new THREE.Mesh(new THREE.CylinderGeometry(.8,.92,14,12),material(0xf1e4d2));
-        col.position.set(k*6.6,8,front+2.4);col.castShadow=true;group.add(col);
-      }
-      box(w*.85,1.6,5,0,16,front+2.4,0xe2d1b5,group);
+      box(6.4,5.6,.35,0,2.8,front+.25,b.room?0x245b55:0x3c4d55,group);
+      box(8,.65,2.7,0,6,front+1,0xded5c4,group);
     }
     sign(b.name,b.room?'CLASS / SPACE · E TO ENTER':'STYLIZED LANDMARK',b.x,h+9,b.z,b.name.length>20?34:28);
     exterior.push({id:b.id,x:b.x,z:b.z,w,d});
