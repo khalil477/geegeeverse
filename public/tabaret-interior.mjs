@@ -68,7 +68,7 @@ export function buildTabaretInterior({THREE, scene, sign}) {
   for(let i=0;i<N;i++){
     const ang=(i+.5)*Math.PI*2/N;
     const x=Math.sin(ang)*R,z=Math.cos(ang)*R;
-    const isEntrance=(ang<.27||ang>2*Math.PI-.27);
+    const isEntrance=(ang<.27||ang>2*Math.PI-.27||Math.abs(ang-Math.PI/2)<.20);
     if(isEntrance)continue;
     const wall=box(2*Math.PI*R/N+.2,wallH,.44,x,wallH/2,z,wallMat);
     wall.rotation.y=ang;
@@ -97,17 +97,24 @@ export function buildTabaretInterior({THREE, scene, sign}) {
   // but we do NOT imply that every gallery or staircase is accessible in-game.
   for(let floor=0;floor<3;floor++){
     const y=6.15+floor*6.0;
-    curveRing(10.95,.27,y,matTrim);
-    curveRing(10.95,.19,y+.75,matRail);
-    curveRing(10.95,.13,y+2.1,matRail);
-    const count=44;
+    // A real circular well remains open through the upper levels.
+    // These ring-shaped gallery decks are visual only in this playable alpha.
+    const deck=new THREE.Mesh(
+      new THREE.RingGeometry(5.75,11.35,72),
+      new THREE.MeshStandardMaterial({color:0xd5c8b5,roughness:.85,side:THREE.DoubleSide})
+    );
+    deck.rotation.x=-Math.PI/2;deck.position.y=y;
+    deck.receiveShadow=true;scene.add(deck);
+    curveRing(5.8,.19,y+.1,matTrim);
+    curveRing(5.8,.09,y+.8,matRail);
+    curveRing(5.8,.11,y+2.15,matRail);
+    const count=40;
     for(let j=0;j<count;j++){
-      const a=j*2*Math.PI/count,x=Math.sin(a)*10.95,z=Math.cos(a)*10.95;
-      beam([x,y+.75,z],[x,y+2.1,z],.046,matRail);
-      // Curled scrollwork-inspired crossbars, intentionally simple.
+      const a=j*2*Math.PI/count,x=Math.sin(a)*5.8,z=Math.cos(a)*5.8;
+      beam([x,y+.8,z],[x,y+2.15,z],.045,matRail);
       if(j%2===0){
-        const b=a+.065;
-        beam([x,y+1,z],[Math.sin(b)*10.95,y+1.65,Math.cos(b)*10.95],.042,matRail);
+        const next=a+.06;
+        beam([x,y+1.12,z],[Math.sin(next)*5.8,y+1.74,Math.cos(next)*5.8],.04,matRail);
       }
     }
   }
@@ -179,7 +186,16 @@ export function buildTabaretInterior({THREE, scene, sign}) {
     const frame=box(2.7,2.4,.12,x,3.7,z,matWalnut);frame.rotation.y=a;
     const blank=box(2.25,1.95,.14,x,3.7,z,mat(0xe3d5bc));blank.rotation.y=a;
   }
-  sign('ROTUNDA','Recognizable architecture · estimated scale',0,3.1,-10.2,20);
+  // Side doorway to publicly documented TBT112. Adjacent circulation is approximate.
+  const doorwayMat=mat(0xbbaa92);
+  box(.68,5.5,1.1,11.7,2.75,-2.65,doorwayMat);
+  box(.68,5.5,1.1,11.7,2.75,2.65,doorwayMat);
+  box(.68,.65,6.7,11.7,5.9,0,matCream);
+  const hallPortal=cylinder(2.35,2.35,.12,8.85,.1,0,mat(0x9ad2bc),scene,24);
+  hallPortal.material.emissive=new THREE.Color(0x275a47);
+  hallPortal.material.emissiveIntensity=.15;
+  sign('HUGUETTE LABELLE','TBT112 · press E by the side doorway',9,5.1,0,16);
+    sign('ROTUNDA','Recognizable architecture · estimated scale',0,3.1,-10.2,20);
   sign('PUBLIC-AREA PREVIEW','Upper galleries are visual only',0,7.2,-11.0,19);
   return {space:'tabaret',features:['rotunda','checker-floor','column-ring','balconies','skylight','stair-study','benches'],walkableLevel:0};
 }
