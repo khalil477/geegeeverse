@@ -16,7 +16,7 @@ export class MotionController {
   constructor(opts={}){
     this.options={...DEFAULTS,...opts};
     this.x=0;this.z=0;this.y=0;this.vx=0;this.vz=0;this.vy=0;
-    this.grounded=true;this.facing=0;this.jumpCooldown=0;
+    this.grounded=true;this.facing=Math.PI;this.jumpCooldown=0;
     this.jumpHeld=false;
   }
   teleport(x,z){
@@ -47,7 +47,7 @@ export class MotionController {
     if(canWalk(nx,this.z))this.x=nx;else this.vx=0;
     if(canWalk(this.x,nz))this.z=nz;else this.vz=0;
     if(movement&&Math.hypot(this.vx,this.vz)>.1){
-      const target=Math.atan2(this.vx,this.vz)+Math.PI;
+      const target=Math.atan2(this.vx,this.vz);
       const delta=Math.atan2(Math.sin(target-this.facing),Math.cos(target-this.facing));
       this.facing+=delta*(1-Math.exp(-o.turnSpeed*dt));
     }

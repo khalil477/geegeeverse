@@ -3,6 +3,7 @@ import { MotionController } from './motion-controller.mjs';
 import { createAvatar,animateAvatar,disposeAvatar } from './avatar-system.mjs';
 import { mountAvatarCreator } from './avatar-creator.mjs';
 import { normalizeAppearance,appearanceKey,AVATAR_DEFAULTS } from './avatar-options.mjs';
+import {cameraSettings} from './animation-poses.mjs';
 import { CAMPUS_LANDMARKS, CAMPUS_SQUARE, CAMPUS_BOUNDS, WORLD_BOUND, project, unproject, projectedPolygons, polygonBounds, pointInPolygon, simplifyRing } from './geo-utils.mjs';
 import { tilePosition, tileWorldBounds, tilesNear } from './map-tiles.mjs';
 import { canStandAt, findSafePosition } from './spawn-utils.mjs';
@@ -34,8 +35,8 @@ async function loadGeographicMap(){
 }
 const motion=new MotionController();
 let mobileJumpQueued=false;
-const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',appearance:{...AVATAR_DEFAULTS},players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:CAMPUS_SQUARE.x,z:CAMPUS_SQUARE.z,cameraYaw:0,cameraDist:22,cameraPitch:.70,near:null,jump:0,jumpVelocity:0,velocityX:0,velocityZ:0};
-const state3d={scene:null,camera:null,renderer:null,avatar:null,actors:new Map(),buildings:[],interiorObjects:[],questionTexture:null,boardMesh:null,firstFrame:false,ground:null,npcs:[],desk:null,occluders:[],tiles:new Map(),tileLoader:null};
+const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',appearance:{...AVATAR_DEFAULTS},players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:CAMPUS_SQUARE.x,z:CAMPUS_SQUARE.z,cameraYaw:0,cameraDist:13,cameraPitch:.31,near:null,jump:0,jumpVelocity:0,velocityX:0,velocityZ:0};
+const state3d={scene:null,camera:null,renderer:null,avatar:null,actors:new Map(),buildings:[],interiorObjects:[],questionTexture:null,boardMesh:null,cameraFocus:null,firstFrame:false,ground:null,npcs:[],desk:null,occluders:[],tiles:new Map(),tileLoader:null};
 let keyset=new Set(),touchKey=null,movingTarget=null,lastAt=0,lastSent=0,dragging=false,prevPointer=null,toastTimeout,voiceStream=null,voiceConnections=new Map(),voiceEnabled=false,nearbyBuildingsHidden=true,lastVisibilityUpdate=0;
 const audioBin=document.createElement('div');audioBin.id='webrtc-audio';audioBin.hidden=true;document.body.append(audioBin);
 const occlusionRay = new THREE.Raycaster();
@@ -56,6 +57,7 @@ function setupUI(){
  $('#return-campus').addEventListener('click',()=>goRoom('plaza'));
  $('#map-toggle').addEventListener('click',()=>$('#map-panel').hidden=!$('#map-panel').hidden);
  $('#unstuck').addEventListener('click',()=>resetToCampus());
+ $('#camera-center').addEventListener('click',centerCamera);
  $('#wall-visibility').addEventListener('click',()=>{nearbyBuildingsHidden=!nearbyBuildingsHidden;$('#wall-visibility').textContent=nearbyBuildingsHidden?'👁 Show nearby walls':'👁 Hide nearby walls';refreshVisibility(true);notify(nearbyBuildingsHidden?'Close-up buildings hidden while exploring.':'Showing all building massing.');});
  $('#mobile-enter').addEventListener('click',enterNearby);
  $('#chat-form').addEventListener('submit',e=>{e.preventDefault();const t=clean($('#chat-text').value);if(t){send({type:'chat',body:t});$('#chat-text').value='';}});
@@ -63,7 +65,7 @@ function setupUI(){
  $('#solution-form').addEventListener('submit',e=>{e.preventDefault();const content=clean($('#solution-input').value);if(content.length<2)return;send({type:'board_submit',content});$('#solution-input').value='';});
  $('#mic-toggle').addEventListener('click',()=>voiceEnabled?stopVoice():startVoice());
  for(const b of $$('[data-move]')){b.addEventListener('pointerdown',e=>{e.preventDefault();touchKey=b.dataset.move;b.setPointerCapture(e.pointerId);});b.addEventListener('pointerup',()=>touchKey=null);b.addEventListener('pointercancel',()=>touchKey=null);b.addEventListener('lostpointercapture',()=>touchKey=null)}
- window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='r'){resetToCampus();e.preventDefault();}if(k==='e')enterNearby();if(k==='f'&&app.room in questionRoom){if(Math.hypot(app.x+11,app.z+7)<12)window.GGVSolo?.talk();else notify('Walk closer to your professor or click Talk in Learn.');}if(k===' '){keyset.add('space');e.preventDefault()}if(k==='shift')keyset.add('shift');});
+ window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='r'){resetToCampus();e.preventDefault();}if(k==='c'){centerCamera();e.preventDefault();}if(k==='e')enterNearby();if(k==='f'&&app.room in questionRoom){if(Math.hypot(app.x+11,app.z+7)<12)window.GGVSolo?.talk();else notify('Walk closer to your professor or click Talk in Learn.');}if(k===' '){keyset.add('space');e.preventDefault()}if(k==='shift')keyset.add('shift');});
  window.addEventListener('keyup',e=>{const key=e.key===' '?'space':e.key.toLowerCase();keyset.delete(key);});window.addEventListener('blur',()=>{keyset.clear();touchKey=null;});
  const mobileExtras=document.querySelector('.touch-controls>div');if(mobileExtras){const jump=document.createElement('button');jump.id='mobile-jump';jump.textContent='⤒';jump.title='Jump';jump.setAttribute('aria-label','Jump');jump.addEventListener('click',()=>{mobileJumpQueued=true});mobileExtras.append(jump);const sprint=document.createElement('button');sprint.id='mobile-sprint';sprint.textContent='⚡';sprint.title='Sprint';sprint.setAttribute('aria-label','Toggle sprint');sprint.addEventListener('click',()=>{sprint.classList.toggle('active');if(sprint.classList.contains('active'))keyset.add('shift');else keyset.delete('shift')});mobileExtras.append(sprint);}
  buildDirectory();renderClass();renderChat();renderPosts();
@@ -107,9 +109,11 @@ function teleportTo(x,z){
  app.x=x;app.z=z;app.velocityX=0;app.velocityZ=0;app.jump=0;app.jumpVelocity=0;movingTarget=null;
  motion.teleport(x,z);if(state3d.avatar)state3d.avatar.position.set(x,0,z);
  if(state3d.camera){
-   const horizontal=app.cameraDist*Math.cos(app.cameraPitch);
-   const target=new THREE.Vector3(x+Math.sin(app.cameraYaw)*horizontal,4+app.cameraDist*Math.sin(app.cameraPitch),z+Math.cos(app.cameraYaw)*horizontal);
+   const {distance,pitch}=cameraSettings({distance:app.cameraDist,pitch:app.cameraPitch});
    const focus=new THREE.Vector3(x,2.7,z);
+   state3d.cameraFocus=focus.clone();
+   const horizontal=distance*Math.cos(pitch);
+   const target=new THREE.Vector3(x+Math.sin(app.cameraYaw)*horizontal,focus.y+1+distance*Math.sin(pitch),z+Math.cos(app.cameraYaw)*horizontal);
    state3d.camera.position.copy(keepCameraOutOfBuildings(focus,target));
    state3d.camera.lookAt(focus);
  }
@@ -122,12 +126,19 @@ function ensureSafeSpawn({notifyUser=false}={}){
  if(safe.moved){teleportTo(safe.x,safe.z);if(notifyUser)notify('Moved you to an outdoor location. Buildings do not block walking in this beta.');}
  return safe.found;
 }
+function centerCamera(){
+  if(!app.joined)return;
+  // Place camera behind the current direction of the character.
+  if(state3d.avatar)app.cameraYaw=state3d.avatar.rotation.y+Math.PI;
+  app.cameraPitch=.31;app.cameraDist=13;
+  notify('Camera recentered. Drag to orbit · scroll to zoom.');
+}
 function resetToCampus(){
  if(!app.joined)return notify('Enter the world first.');
  if(app.room!=='plaza'){goRoom('plaza');return;}
  // Never fail to rescue the player; terrain is intentionally non-blocking in the current alpha.
  const safe=outdoorLanding(CAMPUS_SQUARE.x,CAMPUS_SQUARE.z,cityMap.polygons,{clearance:11,maxRadius:450});
- app.cameraYaw=0;app.cameraDist=24;app.cameraPitch=.7;
+ app.cameraYaw=0;app.cameraDist=13;app.cameraPitch=.31;
  teleportTo(safe.x,safe.z);refreshVisibility(true);
  notify(safe.found?'Teleported outside! Walking is unlocked.':'Rescued to the campus map. Walk anywhere with WASD.');
 }
@@ -264,11 +275,12 @@ function interior(){const room=app.room;state3d.scene.background=new THREE.Color
 }
 function replaceMyAvatar(){if(!state3d.scene||!state3d.avatar)return;const old=state3d.avatar;const mesh=createAvatar(app.name,app.appearance,{isMe:true});mesh.position.copy(old.position);mesh.rotation.copy(old.rotation);state3d.scene.remove(old);disposeAvatar(old);state3d.scene.add(mesh);state3d.avatar=mesh;}
 function buildWorld(){if(!state3d.renderer)return;const old=state3d.scene;if(old){old.traverse(obj=>{if(obj.geometry)obj.geometry.dispose();if(obj.material){for(const m of Array.isArray(obj.material)?obj.material:[obj.material]){m.map?.dispose();m.dispose();}}});}
- state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();if(app.joined&&app.room==='plaza')syncGroundTiles(true);const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;app.near=null;
+ state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();if(app.joined&&app.room==='plaza')syncGroundTiles(true);const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;avatar.rotation.y=motion.facing;app.near=null;
  const limit=app.room==='plaza'?WORLD_BOUND:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);ensureSafeSpawn();
- const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);const h=app.cameraDist*Math.cos(app.cameraPitch);
- state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,4+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
-function init3D(){window.GGV_THREE_STARTED=true;const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,1600);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0],dy=e.clientY-prevPointer[1];app.cameraYaw-=dx*.006;app.cameraPitch=THREE.MathUtils.clamp(app.cameraPitch+dy*.003,.18,.94);prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('click',e=>{if(!state3d.boardMesh||!app.joined||!(app.room in questionRoom))return;const r=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,state3d.camera);if(ray.intersectObject(state3d.boardMesh).length){setTab('board');notify('The problem is ready in the Learn panel.')}});canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=THREE.MathUtils.clamp(app.cameraDist+e.deltaY*.02,8,50)},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';loadGeographicMap();}
+ const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);const {distance,pitch}=cameraSettings({distance:app.cameraDist,pitch:app.cameraPitch});const h=distance*Math.cos(pitch);
+ state3d.cameraFocus=focus.clone();
+ state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,focus.y+1+distance*Math.sin(pitch),app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
+function init3D(){window.GGV_THREE_STARTED=true;const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,1600);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0],dy=e.clientY-prevPointer[1];app.cameraYaw-=dx*.006;app.cameraPitch=cameraSettings({distance:app.cameraDist,pitch:app.cameraPitch+dy*.0028}).pitch;prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('click',e=>{if(!state3d.boardMesh||!app.joined||!(app.room in questionRoom))return;const r=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,state3d.camera);if(ray.intersectObject(state3d.boardMesh).length){setTab('board');notify('The problem is ready in the Learn panel.')}});canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=cameraSettings({distance:app.cameraDist+e.deltaY*.011,pitch:app.cameraPitch}).distance},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';loadGeographicMap();}
 function resize(){if(!state3d.renderer)return;const v=$('#viewport');const w=v.clientWidth,h=v.clientHeight;state3d.renderer.setSize(w,h,false);state3d.camera.aspect=w/h;state3d.camera.updateProjectionMatrix();}
 function syncActors(t,dt){if(!state3d.scene)return;const ids=new Set();for(const p of app.players.values()){if(p.id===app.id)continue;ids.add(p.id);let mesh=state3d.actors.get(p.id);const key=appearanceKey(p)+'|'+p.name;if(mesh&&mesh.userData.profileKey!==key){state3d.scene.remove(mesh);disposeAvatar(mesh);state3d.actors.delete(p.id);mesh=null;}
  if(!mesh){mesh=createAvatar(p.name,p);mesh.userData.profileKey=key;mesh.position.set(p.x,0,p.z);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}
@@ -322,16 +334,24 @@ function update(dt,t){if(!app.joined)return;
  app.x=next.x;app.z=next.z;app.jump=next.y;
  app.velocityX=next.vx;app.velocityZ=next.vz;
  if(state3d.avatar){state3d.avatar.position.set(app.x,app.jump,app.z);
-  animateAvatar(state3d.avatar,dt,{speed:Math.hypot(next.vx,next.vz),elapsed:t/1000,jump:app.jump});
+  animateAvatar(state3d.avatar,dt,{speed:Math.hypot(next.vx,next.vz),elapsed:t/1000,jump:app.jump,verticalVelocity:next.vy,grounded:next.grounded});
   if(moving)state3d.avatar.rotation.y=next.facing;}
  if(t-lastVisibilityUpdate>130){refreshVisibility();lastVisibilityUpdate=t;}
  const camera=state3d.camera,yaw=app.cameraYaw;
- const horizontal=app.cameraDist*Math.cos(app.cameraPitch),height=4+app.cameraDist*Math.sin(app.cameraPitch);
+ const {distance,pitch}=cameraSettings({distance:app.cameraDist,pitch:app.cameraPitch});
+ const horizontal=distance*Math.cos(pitch);
  const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);
- const target=keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(yaw)*horizontal,height+app.jump,app.z+Math.cos(yaw)*horizontal));
- camera.position.lerp(target,1-Math.exp(-12*dt));
- camera.position.copy(keepCameraOutOfBuildings(focus,camera.position));
- camera.lookAt(focus);
+ if(!state3d.cameraFocus)state3d.cameraFocus=focus.clone();
+ state3d.cameraFocus.lerp(focus,1-Math.exp(-9*dt));
+ const look=state3d.cameraFocus;
+ const target=keepCameraOutOfBuildings(look,new THREE.Vector3(look.x+Math.sin(yaw)*horizontal,look.y+1+distance*Math.sin(pitch),look.z+Math.cos(yaw)*horizontal));
+ camera.position.lerp(target,1-Math.exp(-10*dt));
+ camera.position.copy(keepCameraOutOfBuildings(look,camera.position));
+ camera.lookAt(look);
+ // Small FOV widening while moving fast adds energy without motion sickness.
+ const fast=THREE.MathUtils.clamp(Math.hypot(next.vx,next.vz)/26,0,1);
+ const goalFov=59+fast*3;
+ if(Math.abs(camera.fov-goalFov)>.03){camera.fov+=(goalFov-camera.fov)*(1-Math.exp(-4*dt));camera.updateProjectionMatrix();}
  if(t-lastSent>110){send({type:'move',x:app.x,z:app.z});lastSent=t;}
  if(app.room==='plaza'){
   syncGroundTiles();
