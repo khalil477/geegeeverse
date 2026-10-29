@@ -317,6 +317,19 @@ function refreshVisibility(force=false){
  }
 }
 function keepCameraOutOfBuildings(focus,desired){
+ // Keep indoor cameras inside the public rooms so the backs of walls don't disappear.
+ if(app.room==='tabaret112'){
+  const view=desired.clone();
+  view.x=THREE.MathUtils.clamp(view.x,-8.35,8.35);
+  view.z=THREE.MathUtils.clamp(view.z,-7.15,7.15);
+  view.y=Math.min(view.y,12.7);
+  return view;
+ }
+ if(app.room==='tabaret'){
+  const view=desired.clone(),distance=Math.hypot(view.x,view.z);
+  if(distance>10.7){view.x*=10.7/distance;view.z*=10.7/distance;}
+  view.y=Math.min(view.y,21.6);return view;
+ }
  // FIX: GIS extrusions are deliberately not camera colliders in alpha.
  // Free camera + hide nearby massing avoids seeing only the inside of a wall.
  if(app.room==='plaza')return desired;
