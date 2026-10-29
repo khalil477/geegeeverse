@@ -32,6 +32,7 @@ test('Tabaret Rotunda is walkable with reference-based architectural features',(
   assert.ok(labels.some(l=>l[0]==='EXIT TO CAMPUS'));
   assert.ok(labels.some(l=>l[0]==='ROTUNDA'));
   assert.ok(labels.some(l=>l[0]==='HUGUETTE LABELLE'));
+  assert.ok(labels.some(l=>l[0]==='TBT 333'), 'upper-floor classroom preview marker remains present');
   assert.equal(scene.children.filter(x=>x instanceof THREE.Mesh && x.geometry instanceof THREE.RingGeometry).length,3,'upper galleries keep a circular open well');
  }finally{globalThis.document=previous;}
 });
