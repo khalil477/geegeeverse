@@ -1,0 +1,20 @@
+/* Original GeeGeeVerse interface styles */
+#welcome .modal{width:min(780px,calc(100vw - 24px));max-width:780px;max-height:min(94dvh,860px);overflow-y:auto;padding:26px 30px}
+#welcome .modal h1{font-size:clamp(28px,5vw,38px);margin:7px 0 6px}
+#welcome .modal>p{font-size:13px;max-width:690px;line-height:1.5;margin-bottom:12px}
+.avatar-studio{display:grid;grid-template-columns:minmax(200px,.85fr) minmax(250px,1.3fr);gap:14px;margin:12px 0 16px}
+.avatar-preview-pane{background:linear-gradient(160deg,#b3ddd1,#e8f0cd 66%,#f9eac8);border:1px solid #b8d9ca;border-radius:18px;display:flex;align-items:center;flex-direction:column;justify-content:center;padding:10px;min-width:0;position:relative}
+.avatar-preview-heading{font-size:10px;letter-spacing:.08em;font-weight:850;color:#31594b;text-align:center;margin:7px 0}
+.avatar-preview-pane canvas{width:min(100%,220px);height:270px;display:block}
+.avatar-preview-pane small{font-size:10px;color:#526b5e;text-align:center;margin:4px 0 8px}
+.avatar-preview-fallback{color:#345d51;padding:30px 15px;text-align:center;line-height:1.5}
+.avatar-controls{display:grid;grid-template-columns:1fr;gap:9px;align-content:start}
+.avatar-field{min-width:0;max-width:100%;border:0;padding:0;margin:0}
+.avatar-field legend{font-size:11px;font-weight:850;letter-spacing:.02em;color:#2c594b;margin-bottom:6px}
+.avatar-choice-row{display:flex;flex-wrap:wrap;gap:5px}
+.avatar-choice{display:inline-flex;align-items:center;gap:5px;min-height:33px;border-radius:10px;background:#f2f7f1;border:1px solid #d0dfd2;color:#47685a;padding:6px 9px;font-weight:750;font-size:11px;white-space:nowrap}
+.avatar-choice:hover{background:#e6f2e8}.avatar-choice.chosen{background:#2f755f;border:2px solid #2f755f;color:#fff;padding:5px 8px}
+.avatar-choice:focus-visible{outline:2px solid #4b8c78;outline-offset:2px}
+.avatar-dot{width:13px;height:13px;border-radius:50%;border:1px solid #34574c55;display:inline-block;flex-shrink:0}
+#welcome #start{margin-top:4px;min-height:46px}
+@media(max-width:620px){#welcome .modal{padding:18px;max-height:94dvh}.avatar-studio{grid-template-columns:1fr;gap:10px}.avatar-preview-pane canvas{height:205px;width:174px}.avatar-preview-pane{padding:5px}.avatar-controls{gap:8px}.avatar-choice{min-height:31px}#welcome .modal h1{font-size:28px}}
