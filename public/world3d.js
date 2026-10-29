@@ -27,10 +27,10 @@ async function loadGeographicMap(){
     cityMap.polygons=cityMap.buildings;
     cityMap.loaded=true;cityMap.source='City of Ottawa';
     cityMap.counts={buildings:cityMap.buildings.length,sidewalks:cityMap.sidewalks.length,paths:cityMap.paths.length};
-    if(status)status.textContent=`✓ City building footprints: ${cityMap.buildings.length}. 3D façades and heights are NOT verified.`;
+    if(status)status.textContent=`City data available for safer spawn points (${cityMap.buildings.length} footprints). Outdoor scenery remains stylized.`;
     if(app.room==='plaza'){ensureSafeSpawn({notifyUser:app.joined});if(state3d.scene)buildWorld();}
   }catch(err){console.warn('Geographic city data not available; using labelled approximate fallback.',err);
-    if(status)status.textContent='⚠ City footprints unavailable. Real-world street map may still load; 3D buildings are not shown.';
+    if(status)status.textContent='City footprint data unavailable; stylized outdoor buildings still work.';
   }
 }
 const motion=new MotionController();
