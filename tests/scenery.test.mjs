@@ -8,9 +8,10 @@ class Node {constructor(){this.children=[];this.position=position();this.rotatio
 class Mesh extends Node {constructor(geometry,material){super();this.geometry=geometry;this.material=material;}}
 class Geometry {constructor(...args){this.args=args;}}
 class Color {constructor(value){this.value=value;}}
+class Shape {constructor(){this.points=[];}moveTo(x,y){this.points.push([x,y]);}lineTo(x,y){this.points.push([x,y]);}}
 const THREE={
   Mesh, Group:Node, BoxGeometry:Geometry, CylinderGeometry:Geometry,
-  IcosahedronGeometry:Geometry,
+  IcosahedronGeometry:Geometry, Shape, ExtrudeGeometry:Geometry,
   MeshStandardMaterial:class{constructor(properties){this.properties=properties;}},
   Color, Fog:class{constructor(...args){this.args=args;}}
 };
