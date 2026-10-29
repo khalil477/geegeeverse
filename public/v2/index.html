@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#09171d">
+  <meta name="description" content="GeeGeeVerse V2: an independent, realistic browser-based University of Ottawa campus exploration prototype.">
+  <title>GeeGeeVerse V2 · Tabaret Hall</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" tabindex="0" aria-label="Interactive 3D Tabaret Hall campus preview"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <section id="welcome" class="welcome-layer" aria-labelledby="welcome-title">
+      <div class="welcome-shade"></div>
+      <div class="welcome-content">
+        <div class="eyebrow"><span class="dot"></span> GEEGEEVERSE / NEXT GENERATION</div>
+        <div class="intro-line">DISCOVER A NEW WAY TO EXPLORE CAMPUS</div>
+        <h1 id="welcome-title">Your campus.<br><em>Reimagined.</em></h1>
+        <p class="lead">A new first-person, realistic-style experience begins at Tabaret Hall, the historic heart of the University of Ottawa.</p>
+        <p class="disclaimer">Independent student prototype. Photo-inspired architecture and estimated dimensions—not an official or surveyed 1:1 campus replica.</p>
+        <button id="begin" class="primary-button" type="button">Enter the world <span aria-hidden="true">↗</span></button>
+        <p class="welcome-keys">W A S D to move <span>·</span> Drag to look <span>·</span> E to enter buildings</p>
+      </div>
+      <div class="welcome-index"><span>01 / 01</span><span>THE TABARET EXPERIENCE</span></div>
+    </section>
+    <div id="hud" hidden>
+      <header class="game-top">
+        <div class="brand"><div class="brand-mark">G<span>2</span></div><div><strong>GeeGeeVerse</strong><small>VIRTUAL CAMPUS / V2</small></div></div>
+        <div class="place-head"><span class="tiny-label" id="building">TABARET HALL · EXTERIOR</span><strong id="location">Tabaret Lawn</strong><small id="location-sub">An independent architectural study of uOttawa</small></div>
+        <div class="toolbar">
+          <label class="quality-control">QUALITY
+            <select id="quality" aria-label="Rendering quality"><option value="low">Low</option><option value="balanced" selected>Balanced</option><option value="high">High</option></select>
+          </label>
+          <button id="capture" class="tool-button" type="button" aria-pressed="false">Capture mouse</button>
+          <button id="help-toggle" class="tool-button icon-button" type="button" aria-label="Help">?</button>
+        </div>
+      </header>
+      <div class="crosshair" aria-hidden="true"><i></i><i></i></div>
+      <div class="side-label">A MORE REALISTIC CAMPUS EXPERIENCE <span>—</span> ORIGINAL PROCEDURAL MODEL</div>
+      <div class="game-bottom">
+        <div class="mission">
+          <div class="kicker">YOUR EXPLORATION</div>
+          <strong id="mission">Walk to the grand entrance and press E.</strong>
+          <p id="hint">Walk toward Tabaret’s six-column entrance.</p>
+          <div class="status-row"><span id="coords">0.0, 0.0</span><span class="status-separator">/</span><span id="fps">— FPS</span><span class="status-separator">/</span><span id="build">V2 · EARLY PROTOTYPE</span></div>
+        </div>
+        <div class="bottom-right">
+          <button id="action" class="action-button" type="button" hidden>E · Enter Tabaret Rotunda</button>
+          <div class="controls-note">WASD MOVE <span>·</span> MOUSE DRAG LOOK <span>·</span> SHIFT SPRINT <span>·</span> E INTERACT</div>
+        </div>
+      </div>
+      <div id="mobile-pad" class="touch-pad" aria-label="Touch movement controls" hidden>
+        <button data-touch="up" type="button" aria-label="Walk forward">↑</button>
+        <div><button data-touch="left" type="button" aria-label="Walk left">←</button><button data-touch="down" type="button" aria-label="Walk backward">↓</button><button data-touch="right" type="button" aria-label="Walk right">→</button></div>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <aside id="help" class="help-panel" aria-labelledby="help-title" hidden>
+      <button id="close-help" type="button" class="close-help" aria-label="Close help">×</button>
+      <div class="eyebrow">FIELD GUIDE / V2</div>
+      <h2 id="help-title">Explore GeeGeeVerse</h2>
+      <p>Walk across Tabaret Lawn and approach the main stairs. Press <kbd>E</kbd> when the entrance prompt appears to enter the Rotunda. Return through its doorway using <kbd>E</kbd>.</p>
+      <dl>
+        <div><dt>Move</dt><dd>W / A / S / D or arrow keys</dd></div>
+        <div><dt>Look around</dt><dd>Drag on the 3D scene, or capture the mouse</dd></div>
+        <div><dt>Turn</dt><dd>Q and R also rotate the camera</dd></div>
+        <div><dt>Sprint</dt><dd>Hold Shift</dd></div>
+        <div><dt>Interact</dt><dd>E or the on-screen action button</dd></div>
+        <div><dt>Exit mouse capture</dt><dd>Esc</dd></div>
+      </dl>
+      <button id="reset" class="secondary-button" type="button">Reset my position</button>
+      <p class="help-foot">V2 is a new foundation; multiplayer, accurate 1:1 footprints, realistic scanned assets and full indoor navigation are not implemented in this prototype. The original GeeGeeVerse remains available separately.</p>
+    </aside>
+  </div>
+  <script type="module" src="./main.mjs"></script>
+</body>
+</html>
