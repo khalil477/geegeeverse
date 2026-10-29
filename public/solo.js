@@ -60,7 +60,13 @@ function heading(root,title,sub){root.append(el('div','solo-eyebrow','✦ PERSON
 function btn(text,cl,action){const b=el('button',cl,text);b.type='button';b.addEventListener('click',action);return b}
 function render(){if(!data)return;updateXP();document.dispatchEvent(new Event('ggv:learnupdate'));const root=document.querySelector('#solo-panel');if(!root)return;root.replaceChildren();const c=courses[current];
  if(current==='plaza'){heading(root,'Your campus adventure','Explore at your own pace. Even if nobody else is online, your quests are ready.');const card=el('div','solo-feature');card.append(el('span','solo-emoji','🧪'),el('b',null,'Start your chemistry story'),el('p',null,'Meet Professor Nova in the STEM complex, solve problems and run your first virtual lab.'));card.append(btn('Go to CHM 1311 →','solo-primary',()=>api.goRoom('chm1311')));root.append(card);root.append(btn('✨ Open my quest book','solo-secondary',()=>toggleQuests(true)));return}
- if(current==='study'){heading(root,'Study Hall','Take a break, review a topic, or head to a classroom to tackle your next mission.');root.append(btn('🧪 Practice chemistry','solo-primary',()=>api.goRoom('chm1311')));root.append(btn('✨ View quest progress','solo-secondary',()=>toggleQuests(true)));return}
+ if(current==='tabaret'){
+  heading(root,'Explore Tabaret Hall','Visit a walkable Rotunda inspired by official uOttawa photos.');
+  root.append(el('p','solo-blurb','Look for cream columns, the glass dome, circular upper railings, tiled floor and curved benches. This public-area study is not an exact floor plan.'));
+  root.append(btn('← Return to Tabaret Lawn','solo-primary',()=>api.goRoom('plaza')));
+  root.append(btn('✨ View quest progress','solo-secondary',()=>toggleQuests(true)));return;
+  }
+  if(current==='study'){heading(root,'Study Hall','Take a break, review a topic, or head to a classroom to tackle your next mission.');root.append(btn('🧪 Practice chemistry','solo-primary',()=>api.goRoom('chm1311')));root.append(btn('✨ View quest progress','solo-secondary',()=>toggleQuests(true)));return}
  if(current==='lounge'){heading(root,'Student lounge','Catch your breath! This space is open even when you are the only person online.');root.append(el('p','solo-blurb','Explore, send a message, or step into a class. Your progress stays saved in this browser.'));root.append(btn('Visit your personal study nook','solo-primary',()=>api.goRoom('dorm')));return}
  if(current==='dorm'){
  heading(root,'My Study Nook','Decorate your room as you learn. Your choices are saved in this browser.');root.append(el('div','solo-eyebrow','DESK COLOUR'));
