@@ -15,7 +15,7 @@ export function pointInPolygon(x,z,rings){return !!rings?.[0]&&pointInRing(x,z,r
 export function simplifyRing(ring,minDistance=1.15){if(ring.length<=8)return ring;const out=[ring[0]];for(let i=1;i<ring.length-1;i++){const p=ring[i],q=out.at(-1);if(Math.hypot(p.x-q.x,p.z-q.z)>=minDistance)out.push(p);}out.push(ring.at(-1));return out.length>=4?out:ring;}
 // Verified building centres from OpenStreetMap descriptions; NOT entrance coordinates.
 export const CAMPUS_LANDMARKS=[
- {id:'tbt',name:'Tabaret Hall',abbr:'TBT',lat:45.42453,lon:-75.68641,h:19,w:54,d:38,kind:'heritage',color:0xe9d5bd},
+ {id:'tbt',name:'Tabaret Hall',abbr:'TBT',lat:45.42453,lon:-75.68641,h:19,w:54,d:38,kind:'heritage',color:0xe9d5bd,room:'tabaret'},
  {id:'dms',name:'Desmarais Hall',abbr:'DMS',lat:45.42389,lon:-75.68720,h:36,w:39,d:34,color:0x9eb9b4},
  {id:'sim',name:'Simard Hall',abbr:'SMD',lat:45.42346,lon:-75.68570,h:22,w:37,d:28,color:0xc7ab96},
  {id:'mrt',name:'Morisset Library',abbr:'MRT',lat:45.42318,lon:-75.68419,h:23,w:42,d:34,color:0xaebcb6,room:'study'},
