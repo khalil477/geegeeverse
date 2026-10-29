@@ -43,6 +43,10 @@ let keyset=new Set(),touchKey=null,movingTarget=null,lastAt=0,lastSent=0,draggin
 const audioBin=document.createElement('div');audioBin.id='webrtc-audio';audioBin.hidden=true;document.body.append(audioBin);
 const occlusionRay = new THREE.Raycaster();
 const questionRoom={chm1311:'CHM 1311',bio1140:'BIO 1140',psy1101:'PSY 1101',mat1320:'MAT 1320'};
+// Original procedural avatar art is ~5 world-units tall; outdoors and heritage interiors use
+// ~0.38 visual scale so a character reads as approximately human height in metre-based scenery.
+function avatarScaleForRoom(){return ['plaza','tabaret','tabaret112'].includes(app.room)?.38:1;}
+function avatarFocusHeight(){return avatarScaleForRoom()<1?1.48:2.7;}
 function notify(t){const el=$('#notice');el.textContent=t;el.classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('visible'),3500)}
 function send(o){if(app.joined&&app.ws?.readyState===1)app.ws.send(JSON.stringify(o));}
 function clean(s){return String(s||'').trim().slice(0,180)}
@@ -111,8 +115,8 @@ function teleportTo(x,z){
  motion.teleport(x,z);if(state3d.avatar)state3d.avatar.position.set(x,0,z);
  if(state3d.camera){
    const horizontal=app.cameraDist*Math.cos(app.cameraPitch);
-   const target=new THREE.Vector3(x+Math.sin(app.cameraYaw)*horizontal,4+app.cameraDist*Math.sin(app.cameraPitch),z+Math.cos(app.cameraYaw)*horizontal);
-   const focus=new THREE.Vector3(x,2.7,z);
+   const target=new THREE.Vector3(x+Math.sin(app.cameraYaw)*horizontal,(avatarScaleForRoom()<1?1.9:4)+app.cameraDist*Math.sin(app.cameraPitch),z+Math.cos(app.cameraYaw)*horizontal);
+   const focus=new THREE.Vector3(x,avatarFocusHeight(),z);
    state3d.camera.position.copy(keepCameraOutOfBuildings(focus,target));
    state3d.camera.lookAt(focus);
  }
@@ -280,16 +284,16 @@ function interior(){if(app.room==='tabaret112'){state3d.scene.background=new THR
  // physical portal back to the main campus, accessible with E
  box(7,8,.7,mat(0x295b59),0,4,14.15);sign('EXIT','Press E · back to campus',0,11,13.4,18);
 }
-function replaceMyAvatar(){if(!state3d.scene||!state3d.avatar)return;const old=state3d.avatar;const mesh=createAvatar(app.name,app.appearance,{isMe:true});mesh.position.copy(old.position);mesh.rotation.copy(old.rotation);state3d.scene.remove(old);disposeAvatar(old);state3d.scene.add(mesh);state3d.avatar=mesh;}
+function replaceMyAvatar(){if(!state3d.scene||!state3d.avatar)return;const old=state3d.avatar;const mesh=createAvatar(app.name,app.appearance,{isMe:true});mesh.scale.setScalar(avatarScaleForRoom());mesh.position.copy(old.position);mesh.rotation.copy(old.rotation);state3d.scene.remove(old);disposeAvatar(old);state3d.scene.add(mesh);state3d.avatar=mesh;}
 function buildWorld(){if(!state3d.renderer)return;const old=state3d.scene;if(old){old.traverse(obj=>{if(obj.geometry)obj.geometry.dispose();if(obj.material){for(const m of Array.isArray(obj.material)?obj.material:[obj.material]){m.map?.dispose();m.dispose();}}});}
- state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();/* Standalone OpenStreetMap street tiles remain available but are not overlaid on stylized scenery. */const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;app.near=null;
+ state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();/* Standalone OpenStreetMap street tiles remain available but are not overlaid on stylized scenery. */const avatar=createAvatar(app.name,app.appearance,{isMe:true});avatar.scale.setScalar(avatarScaleForRoom());scene.add(avatar);state3d.avatar=avatar;app.near=null;
  const limit=app.room==='plaza'?WORLD_BOUND:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);ensureSafeSpawn();
- const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);const h=app.cameraDist*Math.cos(app.cameraPitch);
- state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,4+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
+ const focus=new THREE.Vector3(app.x,avatarFocusHeight()+app.jump,app.z);const h=app.cameraDist*Math.cos(app.cameraPitch);
+ state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,(avatarScaleForRoom()<1?1.9:4)+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
 function init3D(){window.GGV_THREE_STARTED=true;const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,1600);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0],dy=e.clientY-prevPointer[1];app.cameraYaw-=dx*.006;app.cameraPitch=THREE.MathUtils.clamp(app.cameraPitch+dy*.003,.18,.94);prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('click',e=>{if(!state3d.boardMesh||!app.joined||!(app.room in questionRoom))return;const r=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,state3d.camera);if(ray.intersectObject(state3d.boardMesh).length){setTab('board');notify('The problem is ready in the Learn panel.')}});canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=THREE.MathUtils.clamp(app.cameraDist+e.deltaY*.02,8,50)},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';loadGeographicMap();}
 function resize(){if(!state3d.renderer)return;const v=$('#viewport');const w=v.clientWidth,h=v.clientHeight;state3d.renderer.setSize(w,h,false);state3d.camera.aspect=w/h;state3d.camera.updateProjectionMatrix();}
 function syncActors(t,dt){if(!state3d.scene)return;const ids=new Set();for(const p of app.players.values()){if(p.id===app.id)continue;ids.add(p.id);let mesh=state3d.actors.get(p.id);const key=appearanceKey(p)+'|'+p.name;if(mesh&&mesh.userData.profileKey!==key){state3d.scene.remove(mesh);disposeAvatar(mesh);state3d.actors.delete(p.id);mesh=null;}
- if(!mesh){mesh=createAvatar(p.name,p);mesh.userData.profileKey=key;mesh.position.set(p.x,0,p.z);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}
+ if(!mesh){mesh=createAvatar(p.name,p);mesh.scale.setScalar(avatarScaleForRoom());mesh.userData.profileKey=key;mesh.position.set(p.x,0,p.z);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}
  const previous=mesh.position.clone();mesh.position.lerp(new THREE.Vector3(p.x,0,p.z),1-Math.exp(-11*dt));const delta=mesh.position.clone().sub(previous);const speed=Math.hypot(delta.x,delta.z)/Math.max(.01,dt);if(speed>.1)mesh.rotation.y=Math.atan2(delta.x,delta.z);animateAvatar(mesh,dt,{speed,elapsed:t/1000});}
  for(const [id,obj] of [...state3d.actors.entries()])if(!ids.has(id)){state3d.scene.remove(obj);disposeAvatar(obj);state3d.actors.delete(id);}}
 function canStand(x,z){
@@ -346,8 +350,8 @@ function update(dt,t){if(!app.joined)return;
   if(moving)state3d.avatar.rotation.y=next.facing;}
  if(t-lastVisibilityUpdate>130){refreshVisibility();lastVisibilityUpdate=t;}
  const camera=state3d.camera,yaw=app.cameraYaw;
- const horizontal=app.cameraDist*Math.cos(app.cameraPitch),height=4+app.cameraDist*Math.sin(app.cameraPitch);
- const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);
+ const horizontal=app.cameraDist*Math.cos(app.cameraPitch),height=(avatarScaleForRoom()<1?1.9:4)+app.cameraDist*Math.sin(app.cameraPitch);
+ const focus=new THREE.Vector3(app.x,avatarFocusHeight()+app.jump,app.z);
  const target=keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(yaw)*horizontal,height+app.jump,app.z+Math.cos(yaw)*horizontal));
  camera.position.lerp(target,1-Math.exp(-12*dt));
  camera.position.copy(keepCameraOutOfBuildings(focus,camera.position));
