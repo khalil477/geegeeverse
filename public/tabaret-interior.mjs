@@ -45,15 +45,22 @@ export function buildTabaretInterior({THREE, scene, sign}) {
   }
   // The walkable level is a single open room. 1 unit ~ 1 m for consistent avatar scale.
   box(29.6,.48,29.6,0,-.35,0,mat(0xb9a98c));
-  // Beige and white checked tile, similar to the publicly photographed rotunda.
-  // Tiles are flush with the ground and purely decorative.
-  const tileLight=mat(0xeae5dc),tileDark=mat(0xbdb5aa);
-  const tileGeo=new THREE.BoxGeometry(1.2,.045,1.2);
-  for(let ix=-12;ix<12;ix++)for(let iz=-12;iz<12;iz++){
-    const tile=new THREE.Mesh(tileGeo,(ix+iz)%2?tileLight:tileDark);
-    tile.position.set((ix+.5)*1.2,-.075,(iz+.5)*1.2);
-    tile.receiveShadow=true;scene.add(tile);
+  // A single procedural checker-tile texture keeps the scene light enough to walk.
+  // It resembles published photographs but is not a surveyed floor pattern.
+  const checker=document.createElement('canvas');checker.width=768;checker.height=768;
+  const tiles=checker.getContext('2d');const tileCount=24,tilePx=checker.width/tileCount;
+  for(let x=0;x<tileCount;x++)for(let z=0;z<tileCount;z++){
+    tiles.fillStyle=(x+z)%2?'#bfb8ae':'#f1e9db';
+    tiles.fillRect(x*tilePx,z*tilePx,tilePx,tilePx);
   }
+  const checkerMap=new THREE.CanvasTexture(checker);
+  checkerMap.colorSpace=THREE.SRGBColorSpace;
+  const floorMesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(28.8,28.8),
+    new THREE.MeshStandardMaterial({map:checkerMap,roughness:.93,side:THREE.DoubleSide})
+  );
+  floorMesh.rotation.x=-Math.PI/2;floorMesh.position.y=-.075;
+  floorMesh.receiveShadow=true;scene.add(floorMesh);
   // Faceted circular walls leave a clearly marked entrance gap at southern end.
   const R=12.35,N=40,wallH=22.5;
   const wallMat=mat(0xe6d8c7);
