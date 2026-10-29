@@ -93,7 +93,8 @@ export function buildCampusScenery({THREE, scene, landmarks, square, landingOuts
       const ring=new THREE.Mesh(new THREE.CylinderGeometry(4.2,4.2,.18,20),material(0x8ce0b5));
       ring.position.set(landing.x,.13,landing.z);scene.add(ring);
       sign('ENTER · E',b.abbr+' learning room',landing.x,6.8,landing.z,19);
-      path(landing.x,landing.z,b.x, b.z+d/2+6,5.5,0xe4d6b9);
+      if(b.id==='tbt')path(landing.x,landing.z,b.x+d/2+22,b.z,5.5,0xe4d6b9);
+      else path(landing.x,landing.z,b.x,b.z+d/2+6,5.5,0xe4d6b9);
     }
     if(b.id!=='mrt' && b.id!=='stm'){
       const gate=landingOutside(b);path(hub.x,hub.z,gate.x,gate.z,4.5);
