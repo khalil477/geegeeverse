@@ -1,35 +1,18 @@
-# GeeGeeVerse v0.7 — Spawn and camera repair
+# GeeGeeVerse v0.8 — Movement Recovery
 
-This patch fixes a specific bug reported from the previous GIS version: the player spawned at hard-coded game coordinates `(-42,110)`, which overlap the Social Sciences (FSS) building footprint in the geographic map. Once the map finishes loading, movement collision can trap the player inside the footprint. A third-person camera may also wind up inside nearby walls.
+**What's fixed:** The old GIS building polygons are no longer player colliders. They were blocking movement when spawn placed a character in or near extruded shapes. The camera is free-moving outdoors, and nearby generic building blocks are hidden automatically to keep the view usable. An always-available **↺ Unstuck / R** rescue teleports to the nearest calculated outdoor location. **👁 Show nearby walls** toggles visibility if you want to inspect the geometry.
 
-## Changes
+This is a stability/debugging patch, **not** an accurate uOttawa 3D campus reconstruction. It intentionally allows walking through unfinished buildings. Learning/game modes and server features remain.
 
-- Removed the hard-coded FSS-area spawn. Default entry now starts near the project-defined campus square and automatically finds clear outdoor space when GIS footprint polygons are available.
-- If GIS finishes loading *after* login and your current position falls inside a building, it relocates you outside.
-- Added a prominent `↺ Unstuck` button in the HUD (also keyboard `R`) to teleport back to a safe campus position with the camera reset.
-- When navigating to a landmark, choose a clear outdoor point instead of blindly placing the player in a guessed door location.
-- Added basic third-person camera wall occlusion handling (camera moves toward the avatar when a simplified building model would obstruct it).
-- Added deterministic unit tests for the former bad spawn position and safe spawn selection.
-- Preserved existing multiplayer, quests, classes, and optional opt-in voice signalling. No backend schema or invite-code changes.
+## Update on GitHub + Render
 
-## How to update your live Render site
+1. Extract the ZIP.
+2. Upload the **contents** of the extracted folder to the top level of `khalil477/geegeeverse` on GitHub, replacing matching files. Keep folder structure and include `public/recovery-utils.mjs`.
+3. Commit the changes.
+4. Check that Render auto-deploys the **new commit** and shows **Live**.
+5. Open your site and hard-refresh (Ctrl+Shift+R). **Look for `MOVEMENT PATCH · v0.8` in the header.** If it says something else, you're still seeing an older deployment or cached page.
+6. Use WASD/arrow keys to move, **R** or **↺ Unstuck** to return outdoors.
 
-1. Download and unzip the v0.7 archive **on your computer**.
-2. Open your existing private GitHub repository `khalil477/geegeeverse`.
-3. Use **Add file → Upload files** and upload the extracted **contents**, not the zip. Preserve `public/` and `tests/`, and replace files with the same names. In particular, make sure `public/spawn-utils.mjs` is added and `public/world3d.js` is replaced.
-4. Click **Commit changes**; Render should deploy the updated `main` branch automatically.
-5. Wait for **Live**, then press **Ctrl + Shift + R** in the game. Open your account with your existing invite code. You do not need to create another Web Service or change environment variables.
-6. Click **↺ Unstuck** at the top of the 3D view if you are stuck, or press **R** (not while typing in chat).
+Run locally: `npm start`; test: `npm test`.
 
-## Verification and limits
-
-- `npm test`: nine tests pass, including collision search and multiplayer server integration.
-- `node --check public/world3d.js`: syntax is valid.
-- Full interactive browser rendering and a real-world live Render playtest were *not* completed; verify in Chrome/Edge after deployment.
-- This patch fixes spawning and camera obstruction. **It does not add photorealistic building models** or turn City GIS footprints into a 1:1 uOttawa digital twin. Building elevations, façades, interiors, entrances, and trees still need accurate source models and detailed work.
-- Geographic data from City of Ottawa may fail or be incomplete; without its footprint layer, the game uses a labelled fallback, so the camera wall detection cannot use unseen 3D building geometry.
-- Render Free instances may cold start; posts and multiplayer progress aren't durable until a database is added.
-
-## Development
-
-Requires Node.js 20+. `npm install` is optional because runtime has no external npm packages. `npm test`; `npm start`. Set `INVITE_CODE` (12+ chars) when `NODE_ENV=production`.
+Real building collision and accurate exterior architecture should be re-introduced only after proper walkable path and entrance models are created.

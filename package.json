@@ -1,6 +1,6 @@
 {
-  "name": "geegeeverse-spawn-camera-fix",
-  "version": "0.7.0",
+  "name": "geegeeverse-movement-recovery",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "uOttawa coordinate-anchored, GIS-powered 3D campus alpha with multiplayer learning",
