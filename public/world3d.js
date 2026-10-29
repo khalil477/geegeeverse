@@ -100,7 +100,7 @@ function renderClass(result){const room=app.room,course=questionRoom[room];$('#c
  $('#task-foot').textContent=result?.id===q.id?result.why:'Pick an answer or discuss your approach first. Each correct question awards XP once.';renderBoardEntries();draw3DBoard();}
 function renderBoardEntries(){const wrap=$('#solutions');wrap.replaceChildren();if(!app.board.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='No hints yet. Be the first to start solving together.';wrap.append(empty);}for(const e of app.board.slice(-10)){const c=document.createElement('div');c.className='solution';const who=document.createElement('b');who.textContent=e.author;const text=document.createElement('p');text.textContent=e.content;c.append(who,text);wrap.append(c);}wrap.scrollTop=wrap.scrollHeight;}
 function landingOutside(b){
- const options=[{x:b.x,z:b.z+b.d/2+12},{x:b.x+b.w/2+12,z:b.z},{x:b.x-b.w/2-12,z:b.z},{x:b.x,z:b.z-b.d/2-12}];
+ const options=b.id==='tbt'?[{x:b.x+b.d/2+32,z:b.z},{x:b.x+b.d/2+40,z:b.z+12}]:[{x:b.x,z:b.z+b.d/2+12},{x:b.x+b.w/2+12,z:b.z},{x:b.x-b.w/2-12,z:b.z},{x:b.x,z:b.z-b.d/2-12}];
  const safe=options.map(p=>findSafePosition(p.x,p.z,cityMap.polygons,{clearance:4,maxRadius:120})).find(p=>p.found);
  return safe||findSafePosition(CAMPUS_SQUARE.x,CAMPUS_SQUARE.z,cityMap.polygons,{clearance:4});
 }
