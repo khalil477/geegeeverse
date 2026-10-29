@@ -43,6 +43,14 @@ export function movePlayer(position,zone,yaw,input,delta,sprinting=false){
   return next;
 }
 
+export function groundHeightFor(zone,x,z){
+  if(zone!=='campus')return 0;
+  if(Math.abs(x)>17 || z>=12)return 0;
+  // Smooth first-person rise over the estimated approach steps.
+  if(z>1.6)return Math.max(0,Math.min(2.7,(12-z)*.42));
+  return 0;
+}
+
 export function nearbyAction(zone,x,z){
   if(zone==='campus'&&Math.hypot(x,z-7)<9.2)
     return {label:'Enter Tabaret Rotunda',target:'rotunda'};
