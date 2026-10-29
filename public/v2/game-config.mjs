@@ -8,7 +8,7 @@ export const WALK_SPEED=4.1;
 export const RUN_SPEED=6.8;
 export const EYE_HEIGHT=1.7;
 export const START_POSITION=Object.freeze({x:0,z:36});
-export const START_ROTUNDA=Object.freeze({x:0,z:7.4});
+export const START_ROTUNDA=Object.freeze({x:0,z:2.8});
 export const ZONES=Object.freeze({campus:'Tabaret Lawn',rotunda:'Tabaret Rotunda'});
 export const FACADES=Object.freeze({
   tabaret:{x:0,z:-17,width:72,depth:34,modelHeight:21,accuracy:'photo-inspired, not surveyed'}
@@ -46,7 +46,7 @@ export function movePlayer(position,zone,yaw,input,delta,sprinting=false){
 export function nearbyAction(zone,x,z){
   if(zone==='campus'&&Math.hypot(x,z-7)<9.2)
     return {label:'Enter Tabaret Rotunda',target:'rotunda'};
-  if(zone==='rotunda'&&z>6.4&&Math.abs(x)<4.3)
+  if(zone==='rotunda'&&z>7.6&&Math.abs(x)<4.3)
     return {label:'Exit to Tabaret Lawn',target:'campus'};
   return null;
 }
