@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+import { buildCampusScenery } from './campus-scenery.mjs';
 import { MotionController } from './motion-controller.mjs';
 import { createAvatar,animateAvatar,disposeAvatar } from './avatar-system.mjs';
 import { mountAvatarCreator } from './avatar-creator.mjs';
@@ -248,7 +249,13 @@ function fallbackCampus(){
   }
   sign('CAMPUS PREVIEW','Buildings hidden until real footprints load',CAMPUS_SQUARE.x,15,CAMPUS_SQUARE.z,44);
 }
-function campus(){if(cityMap.loaded)geographicCampus();else fallbackCampus();}
+function campus(){
+  // This shares the existing player coordinates, portals and multiplayer room system.
+  // Geographic renderers remain above for future accurate-geometry work.
+  buildCampusScenery({THREE,scene:state3d.scene,landmarks,square:CAMPUS_SQUARE,landingOutside,sign});
+  const status=document.querySelector('#base-map-status');
+  if(status)status.textContent='Stylized 3D scenery · paths and façades are illustrative';
+}
 function wrapLines(ctx,text,maxWidth){const out=[];let line='';for(const word of text.split(/\s+/)){const t=(line?line+' ':'')+word;if(ctx.measureText(t).width>maxWidth&&line){out.push(line);line=word}else line=t}if(line)out.push(line);return out}
 function draw3DBoard(){const m=state3d.boardMesh;if(!m)return;const c=document.createElement('canvas');c.width=1024;c.height=576;const g=c.getContext('2d');g.fillStyle='#204f46';g.fillRect(0,0,1024,576);g.strokeStyle='#c8b992';g.lineWidth=16;g.strokeRect(10,10,1004,556);g.fillStyle='#a9d9b0';g.font='700 31px system-ui';g.fillText((questionRoom[app.room]||'LEARN TOGETHER')+'  ·  TODAY’S PRACTICE',45,60);
  const question=courseQuestion();g.fillStyle='#f4f4df';g.font='bold 47px system-ui';let yy=143;for(const line of wrapLines(g,window.GGVSolo?.getBoardQuestion?.()||question?.q||'Discuss a problem with your classmates.',920).slice(0,4)){g.fillText(line,45,yy);yy+=60;}
@@ -264,7 +271,7 @@ function interior(){const room=app.room;state3d.scene.background=new THREE.Color
 }
 function replaceMyAvatar(){if(!state3d.scene||!state3d.avatar)return;const old=state3d.avatar;const mesh=createAvatar(app.name,app.appearance,{isMe:true});mesh.position.copy(old.position);mesh.rotation.copy(old.rotation);state3d.scene.remove(old);disposeAvatar(old);state3d.scene.add(mesh);state3d.avatar=mesh;}
 function buildWorld(){if(!state3d.renderer)return;const old=state3d.scene;if(old){old.traverse(obj=>{if(obj.geometry)obj.geometry.dispose();if(obj.material){for(const m of Array.isArray(obj.material)?obj.material:[obj.material]){m.map?.dispose();m.dispose();}}});}
- state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();if(app.joined&&app.room==='plaza')syncGroundTiles(true);const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;app.near=null;
+ state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();/* Standalone OpenStreetMap street tiles remain available but are not overlaid on stylized scenery. */const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;app.near=null;
  const limit=app.room==='plaza'?WORLD_BOUND:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);ensureSafeSpawn();
  const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);const h=app.cameraDist*Math.cos(app.cameraPitch);
  state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,4+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
@@ -334,7 +341,7 @@ function update(dt,t){if(!app.joined)return;
  camera.lookAt(focus);
  if(t-lastSent>110){send({type:'move',x:app.x,z:app.z});lastSent=t;}
  if(app.room==='plaza'){
-  syncGroundTiles();
+  // No map tiles over the new cartoon pathways.
   app.near=nearClassroom();
   $('#nearby').hidden=!app.near;
   if(app.near)$('#nearby').textContent='E · Enter '+app.near.name+(app.near.room in questionRoom?' · '+questionRoom[app.near.room]:'');
