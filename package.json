@@ -1,6 +1,6 @@
 {
-  "name": "geegeeverse-geographic-campus",
-  "version": "0.5.0",
+  "name": "geegeeverse-spawn-camera-fix",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "uOttawa coordinate-anchored, GIS-powered 3D campus alpha with multiplayer learning",

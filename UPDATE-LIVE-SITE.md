@@ -1,10 +1,11 @@
-# Updating your currently-live GeeGeeVerse
+# Update your GeeGeeVerse website (v0.7)
 
-1. Keep your current Render web service, GitHub repository, and secret INVITE_CODE.
-2. Download and **extract** `GeeGeeVerse-Geographic-Campus-v0.5.zip`.
-3. Upload the files **inside** that extracted folder via GitHub Add file → Upload files to `khalil477/geegeeverse`. Preserve subfolders; replace matching filenames. Do not upload the ZIP file alone.
-4. Commit changes. Wait for Render auto deploy to show `Live`.
-5. Reload https://geegeeverse.onrender.com and enter your existing invite code.
-6. Check the bottom map status. If it says `City footprints loaded`, real GIS footprint geometry loaded. If it says `Approximate fallback`, the City API could not be reached and the visible shapes are NOT real footprints.
+1. Unzip the archive.
+2. In GitHub (`khalil477/geegeeverse`), choose **Add file → Upload files**.
+3. Upload the extracted files and `public/` and `tests/` folders; replace existing file paths, preserving hierarchy. **Do not upload the ZIP itself.**
+4. Commit; wait for Render to show **Live**. Keep the same Render Web Service and existing private invite code.
+5. Open https://geegeeverse.onrender.com/ and hard refresh with **Ctrl + Shift + R**.
+6. Click **↺ Unstuck** on the game HUD (or press **R**) to return to a clear outdoor space.
+7. Test WASD, arrow keys, camera drag, and walking to a classroom. If you still cannot walk, share a screenshot of the game and any JavaScript errors from Chrome DevTools → Console.
 
-You are not changing the login/rooms/community system here—this is the first geographic map layer. No promise of pixel-identical building facades, roof shapes, trees, or interiors. The map is still a work in progress.
+This is a movement/camera bug fix, not a visual architectural accuracy upgrade.
