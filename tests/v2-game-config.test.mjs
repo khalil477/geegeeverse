@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   EYE_HEIGHT, START_POSITION, START_ROTUNDA, WALK_SPEED, RUN_SPEED,
-  canOccupy, nearbyAction, movePlayer, ZONES
+  canOccupy, nearbyAction, movePlayer, groundHeightFor, ZONES
 } from '../public/v2/game-config.mjs';
 
 test('new V2 spawns in traversable ground, not inside Tabaret model',()=>{
@@ -27,6 +27,12 @@ test('player movement is normalized, bounded and blocks facade penetration',()=>
  let pos={x:0,z:2.1};
  for(let i=0;i<200;i++)pos=movePlayer(pos,'campus',0,{forward:1,right:0},.06,true);
  assert.ok(pos.z>=1.6,'must not cross main facade collider');
+});
+test('stair camera follows estimated approach elevation',()=>{
+ assert.equal(groundHeightFor('campus',0,14),0);
+ assert.ok(groundHeightFor('campus',0,8)>1);
+ assert.equal(groundHeightFor('rotunda',0,8),0);
+ assert.equal(groundHeightFor('campus',25,8),0);
 });
 test('outdoor portal and Rotunda exit require proximity',()=>{
  assert.equal(nearbyAction('campus',0,10).target,'rotunda');
