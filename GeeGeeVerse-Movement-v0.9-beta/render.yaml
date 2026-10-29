@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: geegeeverse-beta
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: INVITE_CODE
+        sync: false

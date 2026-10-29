@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {canWalkInBounds,shouldHideNearbyBuilding,outdoorLanding} from '../public/recovery-utils.mjs';
+import {canStandAt} from '../public/spawn-utils.mjs';
+const block={rings:[[{x:-50,z:55},{x:45,z:55},{x:45,z:130},{x:-50,z:130},{x:-50,z:55}]],bounds:{minx:-50,maxx:45,minz:55,maxz:130}};
+test('walking is allowed through inaccurate building footprints',()=>{assert.equal(canStandAt(0,90,[block]),false);assert.equal(canWalkInBounds(0,90),true);assert.equal(canWalkInBounds(0,95),true)});
+test('movement never exceeds map bounds',()=>{assert.equal(canWalkInBounds(4000,0),false);assert.equal(canWalkInBounds(Infinity,0),false);assert.equal(canWalkInBounds(100,0),true)});
+test('close building massing is hidden to keep camera playable',()=>{assert.equal(shouldHideNearbyBuilding(0,90,block.bounds),true);assert.equal(shouldHideNearbyBuilding(80,190,block.bounds),false)});
+test('rescue finds a safe landing when geographic data exists',()=>{const loc=outdoorLanding(0,90,[block],{clearance:9,maxRadius:250});assert.equal(loc.found,true);assert.equal(canStandAt(loc.x,loc.z,[block],9),true)});
+test('rescue still returns fallback coordinates on invalid global coverage',()=>{const loc=outdoorLanding(0,90,[block],{clearance:5,maxRadius:1});assert.deepEqual(loc,{x:0,z:90,moved:false,found:false})});
