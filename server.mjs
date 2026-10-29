@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { resolve, join, extname } from 'node:path';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getCampusGeodata } from './campus-data.mjs';
+import { normalizeAppearance } from './public/avatar-options.mjs';
 
 const PORT = Number(process.env.PORT) || 3030;
 const ROOT = resolve(import.meta.dirname, 'public');
@@ -53,7 +54,7 @@ let saveQueue = Promise.resolve();
 function save(){ saveQueue=saveQueue.then(()=>writeFile(DATA,JSON.stringify(db,null,2))).catch(console.error); }
 function clean(v,max=200){return String(v??'').replace(/[\x00-\x1f\x7f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);}
 const clients=new Map();
-function publicPlayer(p){return {id:p.id,name:p.name,color:p.color,hair:p.hair,x:p.x,z:p.z,room:p.room,xp:p.xp,voice:!!p.voice};}
+function publicPlayer(p){return {id:p.id,name:p.name,...p.appearance,x:p.x,z:p.z,room:p.room,xp:p.xp,voice:!!p.voice};}
 function roomPlayers(room){return [...clients.values()].filter(p=>p.ready && p.room===room).map(publicPlayer);}
 function roomsCount(){return Object.fromEntries(ROOMS.map(r=>[r,roomPlayers(r).length]));}
 function send(ws,msg){if(ws.destroyed||!ws.writable) return;const payload=Buffer.from(JSON.stringify(msg));let header;if(payload.length<126){header=Buffer.from([0x81,payload.length]);}else if(payload.length<65536){header=Buffer.alloc(4);header[0]=0x81;header[1]=126;header.writeUInt16BE(payload.length,2);}else return;try{ws.write(Buffer.concat([header,payload]));}catch{}}
@@ -65,10 +66,11 @@ function allowed(p,key,gap){const now=Date.now();const last=p.limits.get(key)||0
 function handle(p,m){if(!m||typeof m!=='object')return;
   if(m.type==='join'){
     const oldRoom = p.ready ? p.room : null;
-    p.name=clean(m.name,20)||'Guest';p.color=['coral','mint','lavender','gold','sky'].includes(m.color)?m.color:'coral';p.hair=['short','curly','bun','cap'].includes(m.hair)?m.hair:'short';p.ready=true;p.room='plaza';p.voice=false;
+    p.name=clean(m.name,20)||'Guest';p.appearance=normalizeAppearance(m);p.color=p.appearance.color;p.hair=p.appearance.hair;p.ready=true;p.room='plaza';p.voice=false;
     send(p.socket,{type:'welcome',id:p.id,players:roomPlayers(p.room),posts:db.posts.slice(-80).reverse(),questions:questions.map(({answer,...q})=>q),counts:roomsCount(),xp:p.xp,board:[]});publishState('plaza');if(oldRoom&&oldRoom!=='plaza')publishState(oldRoom);return;
   }
   if(!p.ready)return;
+  if(m.type==='profile'&&allowed(p,'profile',400)){p.appearance=normalizeAppearance(m);p.name=clean(m.name,20)||p.name;p.color=p.appearance.color;p.hair=p.appearance.hair;publishState(p.room);return;}
   if(m.type==='move'&&allowed(p,'move',55)){const x=Number(m.x),z=Number(m.z);if(!Number.isFinite(x)||!Number.isFinite(z))return;const bound=p.room==='plaza'?610:12;p.x=Math.max(-bound,Math.min(bound,x));p.z=Math.max(-bound,Math.min(bound,z));broadcast(p.room,{type:'moved',id:p.id,x:p.x,z:p.z},p.socket);}
   else if(m.type==='room'&&allowed(p,'room',650)&&ROOMS.includes(m.room)) {const old=p.room;p.room=m.room;p.voice=false;p.x=0;p.z=2;send(p.socket,{type:'room',room:p.room,players:roomPlayers(p.room),board:whiteboards[p.room]||[]});publishState(old);publishState(p.room);}
   else if(m.type==='chat'&&allowed(p,'chat',950)){const body=clean(m.body,220);if(!body)return;broadcast(p.room,{type:'chat',id:randomUUID(),author:p.name,color:p.color,body,at:Date.now()},null);}
@@ -118,5 +120,5 @@ const server=http.createServer(async(req,res)=>{try{
   }
   if (req.method!=='GET' && req.method!=='HEAD'){res.writeHead(405).end();return;}
   const url=new URL(req.url,'http://localhost');const pathname=decodeURIComponent(url.pathname);const rel=pathname==='/'?'/index.html':pathname;if(!/^\/[a-zA-Z0-9_./-]+$/.test(rel)||rel.includes('..')){res.writeHead(400).end();return;}const path=resolve(ROOT,'.'+rel);if(!path.startsWith(ROOT+'/')){res.writeHead(403).end();return;}const buf=await readFile(path);res.writeHead(200,{'content-type':mime[extname(path)]||'application/octet-stream','cache-control':'no-cache','x-content-type-options':'nosniff','content-security-policy':"default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'"});res.end(buf);}catch(err){res.writeHead(404,{'content-type':'text/plain'}).end('Not found');}});
-server.on('upgrade',(req,socket)=>{if(req.url!=='/ws'||!invited(req)){socket.destroy();return;}const key=req.headers['sec-websocket-key'];if(!key||!/^[A-Za-z0-9+/]{22}==$/.test(key)){socket.destroy();return;}const accept=createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');const p={id:randomUUID(),socket,buffer:Buffer.alloc(0),ready:false,room:'plaza',name:'Guest',color:'coral',hair:'short',x:0,z:2,xp:0,voice:false,completed:new Set(),limits:new Map()};clients.set(socket,p);socket.on('data',chunk=>{try{decodeFrames(p,chunk);}catch{socket.destroy();}});const cleanup=()=>{if(!clients.has(socket))return;clients.delete(socket);if(p.ready)publishState(p.room);};socket.on('close',cleanup);socket.on('end',cleanup);socket.on('error',cleanup);});
+server.on('upgrade',(req,socket)=>{if(req.url!=='/ws'||!invited(req)){socket.destroy();return;}const key=req.headers['sec-websocket-key'];if(!key||!/^[A-Za-z0-9+/]{22}==$/.test(key)){socket.destroy();return;}const accept=createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');const p={id:randomUUID(),socket,buffer:Buffer.alloc(0),ready:false,room:'plaza',name:'Guest',color:'coral',hair:'short',appearance:normalizeAppearance({}),x:0,z:2,xp:0,voice:false,completed:new Set(),limits:new Map()};clients.set(socket,p);socket.on('data',chunk=>{try{decodeFrames(p,chunk);}catch{socket.destroy();}});const cleanup=()=>{if(!clients.has(socket))return;clients.delete(socket);if(p.ready)publishState(p.room);};socket.on('close',cleanup);socket.on('end',cleanup);socket.on('error',cleanup);});
 server.listen(PORT,'0.0.0.0',()=>console.log(`\n🏫 GeeGeeVerse is running!\n   Open http://localhost:${PORT}\n   Open two tabs to test multiplayer.\n   Ctrl+C to stop.\n`));

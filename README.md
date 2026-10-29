@@ -1,18 +1,46 @@
-# GeeGeeVerse v0.8 — Movement Recovery
+# GeeGeeVerse — Cartoon Avatars v1.0
 
-**What's fixed:** The old GIS building polygons are no longer player colliders. They were blocking movement when spawn placed a character in or near extruded shapes. The camera is free-moving outdoors, and nearby generic building blocks are hidden automatically to keep the view usable. An always-available **↺ Unstuck / R** rescue teleports to the nearest calculated outdoor location. **👁 Show nearby walls** toggles visibility if you want to inspect the geometry.
+A drop-in upgrade to the existing GeeGeeVerse v0.9 browser-based campus game, not a standalone avatar demo.
 
-This is a stability/debugging patch, **not** an accurate uOttawa 3D campus reconstruction. It intentionally allows walking through unfinished buildings. Learning/game modes and server features remain.
+## New
 
-## Update on GitHub + Render
+- Original stylized 3D characters made in code with rounded meshes, faces, shoes, and articulated arms/legs.
+- Live 3D avatar studio with six customizable groups: outfit colour, skin-tone palette, hairstyle, clothing, accessory and pants.
+- Five hairstyles (short, bob, curls, bun, cap), three outfit types (hoodie, jacket, tee), and four accessory choices (none, backpack, glasses, headphones).
+- Walking arm/leg animation and character rotation; other players' appearances update through existing WebSocket presence messages.
+- Appearance choices save locally on the same browser using localStorage. The server does not currently provide persistent avatar accounts.
+- Campus map, quests, classroom boards, chat, optional voice signaling, Render service and `INVITE_CODE` remain in the project.
 
-1. Extract the ZIP.
-2. Upload the **contents** of the extracted folder to the top level of `khalil477/geegeeverse` on GitHub, replacing matching files. Keep folder structure and include `public/recovery-utils.mjs`.
-3. Commit the changes.
-4. Check that Render auto-deploys the **new commit** and shows **Live**.
-5. Open your site and hard-refresh (Ctrl+Shift+R). **Look for `MOVEMENT PATCH · v0.8` in the header.** If it says something else, you're still seeing an older deployment or cached page.
-6. Use WASD/arrow keys to move, **R** or **↺ Unstuck** to return outdoors.
+## Run
 
-Run locally: `npm start`; test: `npm test`.
+Node.js 20.11+:
 
-Real building collision and accurate exterior architecture should be re-introduced only after proper walkable path and entrance models are created.
+```bash
+npm start
+```
+
+Open http://localhost:3030 (or the selected PORT). For private deployment, set `NODE_ENV=production` and a 12+ character `INVITE_CODE` in Render. Keep the existing Render **Web Service**, build `npm install --omit=dev`, start `npm start`.
+
+## Files changed or added
+
+- `public/avatar-options.mjs` — shared validated customizations
+- `public/avatar-system.mjs` — procedural Three.js cartoon characters and animations
+- `public/avatar-creator.mjs` — preview and character editor
+- `public/avatar-studio.css` — responsive editor styling
+- `public/world3d.js` — integrates new avatars with existing map, NPC and multiplayer
+- `public/index.html` — adds creator to welcome/profile modal
+- `server.mjs` — synchronizes validated avatar appearance across multiplayer sessions
+- `tests/avatar*.test.mjs` — appearance and server integration tests
+
+## Known limitations
+
+- Character animation uses a procedural walk cycle, **not a full motion-captured rig**; no photorealistic external 3D model is included.
+- Three.js is currently imported from jsDelivr, so the 3D world requires the CDN to be reachable.
+- Real uOttawa buildings and campus-map accuracy are unchanged in this avatar update.
+- Browser-side visual rendering could not be verified from the testing environment, though source syntax checks and automated server tests pass.
+- Guest profiles save only on the player's local browser; they do not sync between devices or survive cleared browser storage.
+- The game remains a private alpha; voice/chat require moderation, blocking/reporting and consent controls before public launch.
+
+## Credits and licensing
+
+See `ATTRIBUTION.md` and `LICENSES.md`. Three.js source code is MIT licensed. Every avatar component is newly created using original geometries in `public/avatar-system.mjs`; **no third-party 3D model or texture pack is redistributed here**. Previous motion code uses permission described in ATTRIBUTION.md.

@@ -1,7 +1,12 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+import { MotionController } from './motion-controller.mjs';
+import { createAvatar,animateAvatar,disposeAvatar } from './avatar-system.mjs';
+import { mountAvatarCreator } from './avatar-creator.mjs';
+import { normalizeAppearance,appearanceKey,AVATAR_DEFAULTS } from './avatar-options.mjs';
 import { CAMPUS_LANDMARKS, CAMPUS_SQUARE, CAMPUS_BOUNDS, WORLD_BOUND, project, unproject, projectedPolygons, polygonBounds, pointInPolygon, simplifyRing } from './geo-utils.mjs';
 import { tilePosition, tileWorldBounds, tilesNear } from './map-tiles.mjs';
 import { canStandAt, findSafePosition } from './spawn-utils.mjs';
+import { canWalkInBounds, shouldHideNearbyBuilding, outdoorLanding } from './recovery-utils.mjs';
 /* GeeGeeVerse 3D alpha: campus-inspired landmarks, multiplayer, shared classroom boards, opt-in WebRTC voice. */
 const $=sel=>document.querySelector(sel), $$=sel=>[...document.querySelectorAll(sel)];
 const colors={coral:'#ef9f82',mint:'#92dab6',lavender:'#aca5ee',gold:'#f2cc7f',sky:'#81c9f1'};
@@ -27,9 +32,11 @@ async function loadGeographicMap(){
     if(status)status.textContent='⚠ City footprints unavailable. Real-world street map may still load; 3D buildings are not shown.';
   }
 }
-const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:CAMPUS_SQUARE.x,z:CAMPUS_SQUARE.z,cameraYaw:0,cameraDist:15,cameraPitch:.48,near:null,jump:0,jumpVelocity:0,velocityX:0,velocityZ:0};
+const motion=new MotionController();
+let mobileJumpQueued=false;
+const app={ws:null,id:null,joined:false,connected:false,room:'plaza',name:'Explorer',color:'coral',appearance:{...AVATAR_DEFAULTS},players:new Map(),counts:{},questions:[],posts:[],board:[],xp:0,answered:new Set(),x:CAMPUS_SQUARE.x,z:CAMPUS_SQUARE.z,cameraYaw:0,cameraDist:22,cameraPitch:.70,near:null,jump:0,jumpVelocity:0,velocityX:0,velocityZ:0};
 const state3d={scene:null,camera:null,renderer:null,avatar:null,actors:new Map(),buildings:[],interiorObjects:[],questionTexture:null,boardMesh:null,firstFrame:false,ground:null,npcs:[],desk:null,occluders:[],tiles:new Map(),tileLoader:null};
-let keyset=new Set(),touchKey=null,movingTarget=null,lastAt=0,lastSent=0,dragging=false,prevPointer=null,toastTimeout,voiceStream=null,voiceConnections=new Map(),voiceEnabled=false;
+let keyset=new Set(),touchKey=null,movingTarget=null,lastAt=0,lastSent=0,dragging=false,prevPointer=null,toastTimeout,voiceStream=null,voiceConnections=new Map(),voiceEnabled=false,nearbyBuildingsHidden=true,lastVisibilityUpdate=0;
 const audioBin=document.createElement('div');audioBin.id='webrtc-audio';audioBin.hidden=true;document.body.append(audioBin);
 const occlusionRay = new THREE.Raycaster();
 const questionRoom={chm1311:'CHM 1311',bio1140:'BIO 1140',psy1101:'PSY 1101',mat1320:'MAT 1320'};
@@ -38,10 +45,10 @@ function send(o){if(app.joined&&app.ws?.readyState===1)app.ws.send(JSON.stringif
 function clean(s){return String(s||'').trim().slice(0,180)}
 function setTab(t){$$('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));for(const v of ['board','chat','community'])$('#tab-'+v).hidden=v!==t;}
 function setupUI(){
- $('#start').addEventListener('click',()=>{if(!app.connected){notify('Connecting to the campus server…');return;}app.name=clean($('#nickname').value).slice(0,20)||'Explorer';app.joined=true;sendJoin();$('#welcome').hidden=true;});
+ $('#start').addEventListener('click',()=>{if(!app.connected){notify('Connecting to the campus server…');return;}app.name=clean($('#nickname').value).slice(0,20)||'Explorer';if(app.joined){send({type:'profile',...app.appearance,name:app.name});replaceMyAvatar();$('#player-label').textContent=app.name;$('#welcome').hidden=true;notify('Your avatar look is updated!');return;}app.joined=true;sendJoin();$('#welcome').hidden=true;});
  $('#nickname').addEventListener('keydown',e=>{if(e.key==='Enter')$('#start').click()});
- $$('.swatch').forEach(b=>b.addEventListener('click',()=>{$$('.swatch').forEach(x=>x.classList.remove('chosen'));b.classList.add('chosen');app.color=b.dataset.color;}));
- $('#profile-btn').addEventListener('click',()=>{$('#welcome').hidden=false;});
+ // Avatar Studio supplies sanitized selections via onChange; preview remains separate from campus renderer.
+ $('#profile-btn').addEventListener('click',()=>{$('#nickname').value=app.name;$('#welcome').hidden=false;$('#start').textContent=app.joined?'Save my avatar':'Enter the 3D world →';});
  $('#help-btn').addEventListener('click',()=>$('#help').hidden=false);
  window.GGVSolo?.init({notify,goRoom,room:()=>app.room,onDecor:()=>{if(app.room==='dorm')buildWorld()}});document.addEventListener('ggv:learnupdate',()=>{if(app.room in questionRoom)draw3DBoard()});
  $('#close-help').addEventListener('click',()=>$('#help').hidden=true);
@@ -49,25 +56,27 @@ function setupUI(){
  $('#return-campus').addEventListener('click',()=>goRoom('plaza'));
  $('#map-toggle').addEventListener('click',()=>$('#map-panel').hidden=!$('#map-panel').hidden);
  $('#unstuck').addEventListener('click',()=>resetToCampus());
+ $('#wall-visibility').addEventListener('click',()=>{nearbyBuildingsHidden=!nearbyBuildingsHidden;$('#wall-visibility').textContent=nearbyBuildingsHidden?'👁 Show nearby walls':'👁 Hide nearby walls';refreshVisibility(true);notify(nearbyBuildingsHidden?'Close-up buildings hidden while exploring.':'Showing all building massing.');});
  $('#mobile-enter').addEventListener('click',enterNearby);
  $('#chat-form').addEventListener('submit',e=>{e.preventDefault();const t=clean($('#chat-text').value);if(t){send({type:'chat',body:t});$('#chat-text').value='';}});
  $('#post-form').addEventListener('submit',e=>{e.preventDefault();const body=clean($('#post-text').value);if(body.length<5){notify('Write at least five characters.');return;}send({type:'post',course:$('#post-course').value,body});$('#post-text').value='';});
  $('#solution-form').addEventListener('submit',e=>{e.preventDefault();const content=clean($('#solution-input').value);if(content.length<2)return;send({type:'board_submit',content});$('#solution-input').value='';});
  $('#mic-toggle').addEventListener('click',()=>voiceEnabled?stopVoice():startVoice());
  for(const b of $$('[data-move]')){b.addEventListener('pointerdown',e=>{e.preventDefault();touchKey=b.dataset.move;b.setPointerCapture(e.pointerId);});b.addEventListener('pointerup',()=>touchKey=null);b.addEventListener('pointercancel',()=>touchKey=null);b.addEventListener('lostpointercapture',()=>touchKey=null)}
- window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='r'){resetToCampus();e.preventDefault();}if(k==='e')enterNearby();if(k==='f'&&app.room in questionRoom){if(Math.hypot(app.x+11,app.z+7)<12)window.GGVSolo?.talk();else notify('Walk closer to your professor or click Talk in Learn.');}if(k===' '&&app.jump<=.01){app.jumpVelocity=7.8;e.preventDefault()}if(k==='shift')keyset.add('shift');});
- window.addEventListener('keyup',e=>keyset.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{keyset.clear();touchKey=null;});
- const mobileExtras=document.querySelector('.touch-controls>div');if(mobileExtras){const jump=document.createElement('button');jump.id='mobile-jump';jump.textContent='⤒';jump.title='Jump';jump.setAttribute('aria-label','Jump');jump.addEventListener('click',()=>{if(app.jump<=.01)app.jumpVelocity=7.8});mobileExtras.append(jump);const sprint=document.createElement('button');sprint.id='mobile-sprint';sprint.textContent='⚡';sprint.title='Sprint';sprint.setAttribute('aria-label','Toggle sprint');sprint.addEventListener('click',()=>{sprint.classList.toggle('active');if(sprint.classList.contains('active'))keyset.add('shift');else keyset.delete('shift')});mobileExtras.append(sprint);}
+ window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){keyset.add(k);e.preventDefault()}if(k==='r'){resetToCampus();e.preventDefault();}if(k==='e')enterNearby();if(k==='f'&&app.room in questionRoom){if(Math.hypot(app.x+11,app.z+7)<12)window.GGVSolo?.talk();else notify('Walk closer to your professor or click Talk in Learn.');}if(k===' '){keyset.add('space');e.preventDefault()}if(k==='shift')keyset.add('shift');});
+ window.addEventListener('keyup',e=>{const key=e.key===' '?'space':e.key.toLowerCase();keyset.delete(key);});window.addEventListener('blur',()=>{keyset.clear();touchKey=null;});
+ const mobileExtras=document.querySelector('.touch-controls>div');if(mobileExtras){const jump=document.createElement('button');jump.id='mobile-jump';jump.textContent='⤒';jump.title='Jump';jump.setAttribute('aria-label','Jump');jump.addEventListener('click',()=>{mobileJumpQueued=true});mobileExtras.append(jump);const sprint=document.createElement('button');sprint.id='mobile-sprint';sprint.textContent='⚡';sprint.title='Sprint';sprint.setAttribute('aria-label','Toggle sprint');sprint.addEventListener('click',()=>{sprint.classList.toggle('active');if(sprint.classList.contains('active'))keyset.add('shift');else keyset.delete('shift')});mobileExtras.append(sprint);}
  buildDirectory();renderClass();renderChat();renderPosts();
 }
 function buildDirectory(){const destinations=$('#destinations');destinations.replaceChildren();const sections=[{heading:'YOUR WORLD',items:[{room:'plaza',name:'Main Campus',abbr:'MAP',icon:'🏛',detail:'Open campus'}]},{heading:'CLASSES',items:[{room:'chm1311',name:'CHM 1311',icon:'🧪',detail:'STEM · Chemistry'},{room:'bio1140',name:'BIO 1140',icon:'🧬',detail:'Gendron · Biology'},{room:'psy1101',name:'PSY 1101',icon:'🧠',detail:'FSS · Psychology'},{room:'mat1320',name:'MAT 1320',icon:'📐',detail:'SITE · Calculus'}]},{heading:'SPACES',items:[{room:'study',name:'Morisset',icon:'📚',detail:'Study Hall'},{room:'lounge',name:'University Centre',icon:'☕',detail:'Lounge'},{room:'dorm',name:'My Study Nook',icon:'🛏️',detail:'Private solo room'}]}];for(const section of sections){const heading=document.createElement('div');heading.className='dest-group';heading.textContent=section.heading;destinations.append(heading);for(const item of section.items){const b=document.createElement('button');b.className='destination';b.dataset.room=item.room;const ico=document.createElement('span');ico.className='desticon';ico.textContent=item.icon;const labels=document.createElement('span');const name=document.createElement('b');name.textContent=item.name;const sub=document.createElement('small');sub.textContent=item.detail;labels.append(name,sub);b.append(ico,labels);b.addEventListener('click',()=>goRoom(item.room));destinations.append(b);}}const heading=document.createElement('div');heading.className='dest-group';heading.textContent='REAL CAMPUS LANDMARKS · MAP';destinations.append(heading);for(const item of landmarks){const b=document.createElement('button');b.className='destination';b.title='Navigate to the approximate building centre; entrances are not surveyed.';const ico=document.createElement('span');ico.className='desticon';ico.textContent='📍';const labels=document.createElement('span');const name=document.createElement('b');name.textContent=item.name;const sub=document.createElement('small');sub.textContent=item.abbr+' · locate in 3D';labels.append(name,sub);b.append(ico,labels);b.addEventListener('click',()=>{if(!app.joined)return notify('Enter the world first.');if(app.room!=='plaza'){notify('Return to campus first.');return;}const landing=landingOutside(item);teleportTo(landing.x,landing.z);notify('Now near '+item.name+' · entrance position is approximate.');});destinations.append(b);}}
-function sendJoin(){if(app.ws?.readyState===1)app.ws.send(JSON.stringify({type:'join',name:app.name,color:app.color,hair:'short'}));}
+function sendJoin(){if(app.ws?.readyState===1)app.ws.send(JSON.stringify({type:'join',name:app.name,...app.appearance}));}
 function connect(){const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/ws`);app.ws=ws;ws.addEventListener('open',()=>{app.connected=true;$('#status').textContent='Connected';$('#status-dot').classList.add('online');if(app.joined)sendJoin();});ws.addEventListener('close',()=>{app.connected=false;$('#status').textContent='Reconnecting…';$('#status-dot').classList.remove('online');app.players.clear();stopVoice();setTimeout(connect,2000)});ws.addEventListener('message',e=>{try{handle(JSON.parse(e.data))}catch(err){console.warn('message',err)}});}
 function handle(m){
- if(m.type==='welcome'){app.id=m.id;app.room='plaza';app.questions=m.questions||[];app.posts=m.posts||[];app.xp=m.xp||0;app.counts=m.counts||{};app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.x=CAMPUS_SQUARE.x;app.z=CAMPUS_SQUARE.z;ensureSafeSpawn();window.GGVSolo?.begin();window.GGVSolo?.enter('plaza');$('#player-label').textContent=app.name;buildWorld();renderPosts();renderClass();setRoomLabel();updateCounts();notify('Welcome to the 3D campus, '+app.name+'!');}
- else if(m.type==='room'){stopVoice();app.room=m.room;app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.board=m.board||[];app.x=0;app.z=2;app.velocityX=0;app.velocityZ=0;window.GGVSolo?.enter(app.room);buildWorld();renderClass();setRoomLabel();renderChat();updateCounts();notify('Entered '+rooms[app.room].name);}
+ if(m.type==='welcome'){app.id=m.id;app.room='plaza';app.questions=m.questions||[];app.posts=m.posts||[];app.xp=m.xp||0;app.counts=m.counts||{};app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.x=CAMPUS_SQUARE.x;app.z=CAMPUS_SQUARE.z;motion.teleport(app.x,app.z);ensureSafeSpawn();window.GGVSolo?.begin();window.GGVSolo?.enter('plaza');$('#player-label').textContent=app.name;buildWorld();renderPosts();renderClass();setRoomLabel();updateCounts();notify('Welcome to the 3D campus, '+app.name+'!');}
+ else if(m.type==='room'){stopVoice();app.room=m.room;app.players=new Map((m.players||[]).map(p=>[p.id,p]));app.board=m.board||[];app.x=0;app.z=2;app.velocityX=0;app.velocityZ=0;motion.teleport(app.x,app.z);window.GGVSolo?.enter(app.room);buildWorld();renderClass();setRoomLabel();renderChat();updateCounts();notify('Entered '+rooms[app.room].name);}
  else if(m.type==='presence'){app.players=new Map((m.players||[]).map(p=>[p.id,p]));syncVoices();updateCounts();}
  else if(m.type==='counts'){app.counts=m.counts;updateCounts();}
+ else if(m.type==='profile'){const p=app.players.get(m.id);if(p){Object.assign(p,m.profile);p.name=m.name||p.name;}}
  else if(m.type==='moved'){const p=app.players.get(m.id);if(p){p.x=m.x;p.z=m.z;}}
  else if(m.type==='chat'){const wrap=$('#chats');const div=document.createElement('div');div.className='chat-message';const author=document.createElement('b');author.textContent=m.author;const body=document.createElement('p');body.textContent=m.body;div.append(author,body);wrap.append(div);if(wrap.children.length>40)wrap.firstChild.remove();wrap.scrollTop=wrap.scrollHeight;}
  else if(m.type==='post'){app.posts.unshift(m.post);renderPosts();}
@@ -96,7 +105,7 @@ function landingOutside(b){
 }
 function teleportTo(x,z){
  app.x=x;app.z=z;app.velocityX=0;app.velocityZ=0;app.jump=0;app.jumpVelocity=0;movingTarget=null;
- if(state3d.avatar)state3d.avatar.position.set(x,0,z);
+ motion.teleport(x,z);if(state3d.avatar)state3d.avatar.position.set(x,0,z);
  if(state3d.camera){
    const horizontal=app.cameraDist*Math.cos(app.cameraPitch);
    const target=new THREE.Vector3(x+Math.sin(app.cameraYaw)*horizontal,4+app.cameraDist*Math.sin(app.cameraPitch),z+Math.cos(app.cameraYaw)*horizontal);
@@ -108,18 +117,19 @@ function teleportTo(x,z){
 }
 function ensureSafeSpawn({notifyUser=false}={}){
  if(app.room!=='plaza')return false;
- const safe=findSafePosition(app.x,app.z,cityMap.polygons,{clearance:4,maxRadius:220});
- if(!safe.found){console.warn('No clear outdoor position found near avatar');return false;}
- if(safe.moved){teleportTo(safe.x,safe.z);if(notifyUser)notify('Moved you outside the buildings so you can walk freely.');}
- return true;
+ if(!cityMap.loaded)return true; // Wait until City footprints are known before declaring a point outdoors.
+ const safe=outdoorLanding(app.x,app.z,cityMap.polygons,{clearance:11,maxRadius:380});
+ if(safe.moved){teleportTo(safe.x,safe.z);if(notifyUser)notify('Moved you to an outdoor location. Buildings do not block walking in this beta.');}
+ return safe.found;
 }
 function resetToCampus(){
  if(!app.joined)return notify('Enter the world first.');
  if(app.room!=='plaza'){goRoom('plaza');return;}
- const safe=findSafePosition(CAMPUS_SQUARE.x,CAMPUS_SQUARE.z,cityMap.polygons,{clearance:5,maxRadius:220});
- if(!safe.found)return notify('Could not find a clear outdoor location. Try reloading.');
- app.cameraYaw=0;app.cameraDist=15;app.cameraPitch=.48;
- teleportTo(safe.x,safe.z);notify('Teleported to a clear outdoor campus spot.');
+ // Never fail to rescue the player; terrain is intentionally non-blocking in the current alpha.
+ const safe=outdoorLanding(CAMPUS_SQUARE.x,CAMPUS_SQUARE.z,cityMap.polygons,{clearance:11,maxRadius:450});
+ app.cameraYaw=0;app.cameraDist=24;app.cameraPitch=.7;
+ teleportTo(safe.x,safe.z);refreshVisibility(true);
+ notify(safe.found?'Teleported outside! Walking is unlocked.':'Rescued to the campus map. Walk anywhere with WASD.');
 }
 function nearClassroom(){return landmarks.filter(b=>b.room).find(b=>{const landing=landingOutside(b);return Math.hypot(app.x-landing.x,app.z-landing.z)<24;});}
 function enterNearby(){if(app.room!=='plaza'){if(app.z>7)goRoom('plaza');else notify('Walk toward the exit at the back of the room or use ← Campus.');return;}const near=nearClassroom();if(near)goRoom(near.room);else notify('Walk near a classroom doorway or choose a building in the directory.');}
@@ -245,33 +255,47 @@ function draw3DBoard(){const m=state3d.boardMesh;if(!m)return;const c=document.c
  g.fillStyle='#a4ceb7';g.font='27px system-ui';g.fillText('What is your reasoning?',45,Math.max(340,yy+15));g.fillStyle='#f1e6cc';g.font='24px system-ui';const entries=app.board.slice(-2);let y=430;for(const entry of entries){const txt=entry.author+': '+entry.content;for(const line of wrapLines(g,txt,920).slice(0,2)){g.fillText(line,45,y);y+=32;}}
  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const old=m.material.map;m.material.map=tex;m.material.needsUpdate=true;if(old)old.dispose();}
 function interior(){const room=app.room;state3d.scene.background=new THREE.Color(room==='lounge'?0xd7c3aa:0xc2d4c8);state3d.scene.fog=null;box(29,.3,29,mat(room==='lounge'?0xc3a488:0xd5c4aa),0,-.22,0);box(29,10,.5,mat(room==='lounge'?0xaf9684:0x9dbeb3),0,5,-14.5);box(.5,10,29,mat(0xb6ccc1),-14.5,5,0);box(.5,10,29,mat(0xb6ccc1),14.5,5,0);
- const board=box(16,8,.2,mat(0x215246),0,5.8,-14.0);state3d.boardMesh=board;if(room in questionRoom){draw3DBoard();const prof=avatarMesh(room==='chm1311'?'Professor Nova':'Course Mentor','gold','bun');prof.position.set(-11,0,-7);state3d.scene.add(prof);state3d.npcs.push({name:'Professor Nova',mesh:prof,x:-11,z:-7,roam:0});sign('TALK TO PROFESSOR','Press F · Get a hint',-10,9,-7,17)}else{sign(room==='study'?'STUDY HALL':room==='dorm'?'YOUR STUDY NOOK':'STUDENT LOUNGE',room==='study'?'Grab a seat and review':room==='dorm'?'Personalize your space':'Hang out with students',0,7.4,-12.7,23);}
+ const board=box(16,8,.2,mat(0x215246),0,5.8,-14.0);state3d.boardMesh=board;if(room in questionRoom){draw3DBoard();const prof=createAvatar(room==='chm1311'?'Professor Nova':'Course Mentor',{color:'gold',skin:'cocoa',hair:'bun',style:'jacket',accessory:'glasses',pants:'forest'});prof.position.set(-11,0,-7);state3d.scene.add(prof);state3d.npcs.push({name:'Professor Nova',mesh:prof,x:-11,z:-7,roam:0});sign('TALK TO PROFESSOR','Press F · Get a hint',-10,9,-7,17)}else{sign(room==='study'?'STUDY HALL':room==='dorm'?'YOUR STUDY NOOK':'STUDENT LOUNGE',room==='study'?'Grab a seat and review':room==='dorm'?'Personalize your space':'Hang out with students',0,7.4,-12.7,23);}
  for(const [x,z] of [[-8,-3],[8,-3],[-8,7],[8,7]]){box(7,.55,3,materials.wood,x,1.5,z);for(const dx of [-2.6,2.6])for(const dz of [-1,1])box(.35,2.1,.35,mat(0x8b7058),x+dx,.5,z+dz)}
  for(let x of [-10,10])for(let z of [-9,2,10]){box(2,.8,2,mat(room==='lounge'?0x7b8c92:0x749f98),x,.5,z)}
  if(room==='dorm'){const pal={mint:0x93cfa7,coral:0xf0a99c,lavender:0xb7a2e3,gold:0xe8ce87};const c=window.GGVSolo?.getDecor()||'mint';const top=box(8,.6,4,mat(pal[c]||pal.mint),0,1.6,-5);state3d.desk=top;box(9,2,4,mat(0xb29377),0,.5,-5);box(4,1.5,2,mat(0xcddfbf),4,2,-6);sphere(1.8,mat(0xe6d5a2),-7,1.7,-4);sign('YOUR DESK','Change colours from Learn',0,5,-4,16);}
  // physical portal back to the main campus, accessible with E
  box(7,8,.7,mat(0x295b59),0,4,14.15);sign('EXIT','Press E · back to campus',0,11,13.4,18);
 }
-function avatarMesh(name,color='mint',hair='short',isMe=false){const group=new THREE.Group();const skin=mat(0xb99076),outfit=mat(colors[color]||colors.mint),pants=mat(0x455568),hairMat=mat(0x3c393c);
- function add(geo,m,x,y,z){const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);group.add(o);return o;}
- add(new THREE.BoxGeometry(1.4,1.65,.85),outfit,0,2.15,0);add(new THREE.BoxGeometry(.5,1.45,.5),pants,-.42,.75,0);add(new THREE.BoxGeometry(.5,1.45,.5),pants,.42,.75,0);add(new THREE.BoxGeometry(.38,1.3,.5),skin,-.91,2.05,0);add(new THREE.BoxGeometry(.38,1.3,.5),skin,.91,2.05,0);add(new THREE.SphereGeometry(.75,12,8),skin,0,3.55,0);add(new THREE.SphereGeometry(.76,12,8,0,Math.PI,0,Math.PI/2),hairMat,0,3.83,0);
- add(new THREE.BoxGeometry(.12,.12,.07),hairMat,-.24,3.58,.71);add(new THREE.BoxGeometry(.12,.12,.07),hairMat,.24,3.58,.71);
- if(isMe){const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.22,28),new THREE.MeshBasicMaterial({color:0xfce4ab,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.08;group.add(ring);}
- const label=document.createElement('canvas');label.width=360;label.height=80;const g=label.getContext('2d');g.fillStyle='#173e3bbb';g.beginPath();g.roundRect(3,3,354,70,17);g.fill();g.fillStyle='#fff';g.font='bold 35px system-ui';g.textAlign='center';g.fillText(name.slice(0,18),180,49,330);const tex=new THREE.CanvasTexture(label);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));sprite.position.y=5.5;sprite.scale.set(5.4,1.2,1);group.add(sprite);return group;
-}
+function replaceMyAvatar(){if(!state3d.scene||!state3d.avatar)return;const old=state3d.avatar;const mesh=createAvatar(app.name,app.appearance,{isMe:true});mesh.position.copy(old.position);mesh.rotation.copy(old.rotation);state3d.scene.remove(old);disposeAvatar(old);state3d.scene.add(mesh);state3d.avatar=mesh;}
 function buildWorld(){if(!state3d.renderer)return;const old=state3d.scene;if(old){old.traverse(obj=>{if(obj.geometry)obj.geometry.dispose();if(obj.material){for(const m of Array.isArray(obj.material)?obj.material:[obj.material]){m.map?.dispose();m.dispose();}}});}
- state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();if(app.joined&&app.room==='plaza')syncGroundTiles(true);const avatar=avatarMesh(app.name,app.color,'short',true);scene.add(avatar);state3d.avatar=avatar;app.near=null;
+ state3d.tiles.clear();state3d.tileLoader=null;lastTileCheckX=Infinity;lastTileCheckZ=Infinity;const scene=new THREE.Scene();state3d.scene=scene;state3d.boardMesh=null;state3d.buildings=[];state3d.npcs=[];state3d.desk=null;state3d.occluders=[];state3d.actors.clear();scene.add(new THREE.HemisphereLight(0xffffff,0x679289,2.2));const sun=new THREE.DirectionalLight(0xffefd3,2.1);sun.position.set(-80,130,20);scene.add(sun);if(app.room==='plaza')campus();else interior();if(app.joined&&app.room==='plaza')syncGroundTiles(true);const avatar=createAvatar(app.name,app.appearance,{isMe:true});scene.add(avatar);state3d.avatar=avatar;app.near=null;
  const limit=app.room==='plaza'?WORLD_BOUND:11;app.x=THREE.MathUtils.clamp(app.x,-limit,limit);app.z=THREE.MathUtils.clamp(app.z,-limit,limit);avatar.position.set(app.x,0,app.z);ensureSafeSpawn();
  const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);const h=app.cameraDist*Math.cos(app.cameraPitch);
- state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,4+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);}
+ state3d.camera.position.copy(keepCameraOutOfBuildings(focus,new THREE.Vector3(app.x+Math.sin(app.cameraYaw)*h,4+app.cameraDist*Math.sin(app.cameraPitch)+app.jump,app.z+Math.cos(app.cameraYaw)*h)));state3d.camera.lookAt(focus);refreshVisibility(true);}
 function init3D(){window.GGV_THREE_STARTED=true;const canvas=$('#world');const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;state3d.renderer=renderer;state3d.camera=new THREE.PerspectiveCamera(59,1,.1,1600);resize();window.addEventListener('resize',resize);buildWorld();canvas.addEventListener('pointerdown',e=>{dragging=true;prevPointer=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('pointermove',e=>{if(dragging&&prevPointer){const dx=e.clientX-prevPointer[0],dy=e.clientY-prevPointer[1];app.cameraYaw-=dx*.006;app.cameraPitch=THREE.MathUtils.clamp(app.cameraPitch+dy*.003,.18,.94);prevPointer=[e.clientX,e.clientY]}});canvas.addEventListener('pointerup',()=>{dragging=false;prevPointer=null});canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('click',e=>{if(!state3d.boardMesh||!app.joined||!(app.room in questionRoom))return;const r=canvas.getBoundingClientRect(),mouse=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(mouse,state3d.camera);if(ray.intersectObject(state3d.boardMesh).length){setTab('board');notify('The problem is ready in the Learn panel.')}});canvas.addEventListener('wheel',e=>{e.preventDefault();app.cameraDist=THREE.MathUtils.clamp(app.cameraDist+e.deltaY*.02,8,50)},{passive:false});requestAnimationFrame(loop);$('#loading').style.display='none';loadGeographicMap();}
 function resize(){if(!state3d.renderer)return;const v=$('#viewport');const w=v.clientWidth,h=v.clientHeight;state3d.renderer.setSize(w,h,false);state3d.camera.aspect=w/h;state3d.camera.updateProjectionMatrix();}
-function syncActors(t){if(!state3d.scene)return;const ids=new Set();for(const p of app.players.values()){if(p.id===app.id)continue;ids.add(p.id);let mesh=state3d.actors.get(p.id);if(!mesh){mesh=avatarMesh(p.name,p.color,p.hair);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}mesh.position.lerp(new THREE.Vector3(p.x,0,p.z),.24);mesh.children[0].rotation.z=Math.sin(t/200+p.x)*.01;}
- for(const [id,obj] of [...state3d.actors.entries()])if(!ids.has(id)){state3d.scene.remove(obj);state3d.actors.delete(id);}}
+function syncActors(t,dt){if(!state3d.scene)return;const ids=new Set();for(const p of app.players.values()){if(p.id===app.id)continue;ids.add(p.id);let mesh=state3d.actors.get(p.id);const key=appearanceKey(p)+'|'+p.name;if(mesh&&mesh.userData.profileKey!==key){state3d.scene.remove(mesh);disposeAvatar(mesh);state3d.actors.delete(p.id);mesh=null;}
+ if(!mesh){mesh=createAvatar(p.name,p);mesh.userData.profileKey=key;mesh.position.set(p.x,0,p.z);state3d.actors.set(p.id,mesh);state3d.scene.add(mesh)}
+ const previous=mesh.position.clone();mesh.position.lerp(new THREE.Vector3(p.x,0,p.z),1-Math.exp(-11*dt));const delta=mesh.position.clone().sub(previous);const speed=Math.hypot(delta.x,delta.z)/Math.max(.01,dt);if(speed>.1)mesh.rotation.y=Math.atan2(delta.x,delta.z);animateAvatar(mesh,dt,{speed,elapsed:t/1000});}
+ for(const [id,obj] of [...state3d.actors.entries()])if(!ids.has(id)){state3d.scene.remove(obj);disposeAvatar(obj);state3d.actors.delete(id);}}
 function canStand(x,z){
- return app.room!=='plaza' || canStandAt(x,z,cityMap.polygons,2.5);
+ // FIX: The GIS layer is not a trustworthy gameplay collider. It previously trapped
+ // avatars inside approximated/extruded buildings with no validated entrances.
+ // Real building collision will return only after real navigable terrain is modelled.
+ return app.room!=='plaza' || canWalkInBounds(x,z);
+}
+// Free navigation / safety visualization: hide nearby unmodelled building massing
+// rather than let it fill the whole screen as opaque walls.
+function refreshVisibility(force=false){
+ if(app.room!=='plaza'||!state3d.scene)return;
+ for(const building of state3d.occluders){
+  const bounds=building.userData.footprintBounds;
+  if(!bounds)continue;
+  const cam=state3d.camera?.position;
+  const near=shouldHideNearbyBuilding(app.x,app.z,bounds,18) || (cam && shouldHideNearbyBuilding(cam.x,cam.z,bounds,12));
+  building.visible=!(nearbyBuildingsHidden && near);
+ }
 }
 function keepCameraOutOfBuildings(focus,desired){
+ // FIX: GIS extrusions are deliberately not camera colliders in alpha.
+ // Free camera + hide nearby massing avoids seeing only the inside of a wall.
+ if(app.room==='plaza')return desired;
  if(app.room!=='plaza'||!state3d.occluders.length)return desired;
  const rayDir=desired.clone().sub(focus),distance=rayDir.length();
  if(distance<.01)return desired;
@@ -290,20 +314,17 @@ function update(dt,t){if(!app.joined)return;
  if(s.has('s')||s.has('arrowdown')||touchKey==='down')lz++;
  if(s.has('a')||s.has('arrowleft')||touchKey==='left')lx--;
  if(s.has('d')||s.has('arrowright')||touchKey==='right')lx++;
- const moving=!!(lx||lz);if(moving){const d=Math.hypot(lx,lz);lx/=d;lz/=d;}
- const c=Math.cos(app.cameraYaw),sn=Math.sin(app.cameraYaw);
- const targetSpeed=(app.room==='plaza'?20:9)*(s.has('shift')?1.65:1);
- const vx=(lx*c+lz*sn)*targetSpeed,vz=(lz*c-lx*sn)*targetSpeed;
- const smoothing=1-Math.exp(-13*dt);
- app.velocityX=THREE.MathUtils.lerp(app.velocityX,vx,smoothing);
- app.velocityZ=THREE.MathUtils.lerp(app.velocityZ,vz,smoothing);
- let nx=app.x+app.velocityX*dt,nz=app.z+app.velocityZ*dt;
- const limit=app.room==='plaza'?WORLD_BOUND:11;
- nx=THREE.MathUtils.clamp(nx,-limit,limit);nz=THREE.MathUtils.clamp(nz,-limit,limit);
- if(canStand(nx,app.z))app.x=nx;else app.velocityX=0;
- if(canStand(app.x,nz))app.z=nz;else app.velocityZ=0;
- if(app.jumpVelocity!==0||app.jump>0){app.jump+=app.jumpVelocity*dt;app.jumpVelocity-=22*dt;if(app.jump<0){app.jump=0;app.jumpVelocity=0;}}
- if(state3d.avatar){state3d.avatar.position.set(app.x,app.jump,app.z);state3d.avatar.children[0].rotation.z=moving?Math.sin(t*.015)*.06:0;if(moving)state3d.avatar.rotation.y=Math.atan2(app.velocityX,app.velocityZ)+Math.PI;}
+ const jump=mobileJumpQueued||s.has('space');mobileJumpQueued=false;
+ const next=motion.step(dt,{right:lx,forward:lz,yaw:app.cameraYaw,
+   sprint:s.has('shift'),jump,outdoors:app.room==='plaza',
+   limit:app.room==='plaza'?WORLD_BOUND:11},canStand);
+ const moving=Math.hypot(next.vx,next.vz)>.12;
+ app.x=next.x;app.z=next.z;app.jump=next.y;
+ app.velocityX=next.vx;app.velocityZ=next.vz;
+ if(state3d.avatar){state3d.avatar.position.set(app.x,app.jump,app.z);
+  animateAvatar(state3d.avatar,dt,{speed:Math.hypot(next.vx,next.vz),elapsed:t/1000,jump:app.jump});
+  if(moving)state3d.avatar.rotation.y=next.facing;}
+ if(t-lastVisibilityUpdate>130){refreshVisibility();lastVisibilityUpdate=t;}
  const camera=state3d.camera,yaw=app.cameraYaw;
  const horizontal=app.cameraDist*Math.cos(app.cameraPitch),height=4+app.cameraDist*Math.sin(app.cameraPitch);
  const focus=new THREE.Vector3(app.x,2.7+app.jump,app.z);
@@ -323,7 +344,7 @@ function update(dt,t){if(!app.joined)return;
  }
  if(state3d.npcs.length){for(let i=0;i<state3d.npcs.length;i++){const npc=state3d.npcs[i];if(npc.name==='Professor Nova'){npc.mesh.rotation.y=Math.sin(t*.0005)*.15;continue;}npc.mesh.position.x=npc.x+Math.sin(t*.00035+i)*npc.roam;npc.mesh.position.z=npc.z+Math.cos(t*.00035+i)*npc.roam*.65;npc.mesh.rotation.y=Math.atan2(Math.cos(t*.00035+i),-Math.sin(t*.00035+i));}}
  $('#position').textContent=app.room==='plaza'?`${unproject(app.x,app.z).lat.toFixed(5)}° N, ${Math.abs(unproject(app.x,app.z).lon).toFixed(5)}° W`:`Classroom · ${Math.round(app.x)}, ${Math.round(app.z)}`;
- syncActors(t);
+ syncActors(t,dt);
 }
 function loop(t){const dt=Math.min(.06,(t-(lastAt||t))/1000);lastAt=t;update(dt,t);if(state3d.renderer&&state3d.scene)state3d.renderer.render(state3d.scene,state3d.camera);drawMinimap();requestAnimationFrame(loop);}
 function drawMinimap(){
@@ -351,4 +372,4 @@ function peerConnection(id){if(voiceConnections.has(id))return voiceConnections.
 async function initiate(id){try{const item=peerConnection(id),pc=item.pc;if(pc.signalingState!=='stable')return;const offer=await pc.createOffer();await pc.setLocalDescription(offer);send({type:'signal',to:id,signal:{type:'offer',sdp:pc.localDescription.sdp}});}catch(e){console.warn('voice offer',e)}}
 async function acceptSignal(id,s){if(!voiceEnabled||!app.players.get(id)?.voice)return;try{const item=peerConnection(id),pc=item.pc;if(s.type==='offer'){if(pc.signalingState!=='stable')return;await pc.setRemoteDescription({type:'offer',sdp:s.sdp});const answer=await pc.createAnswer();await pc.setLocalDescription(answer);send({type:'signal',to:id,signal:{type:'answer',sdp:pc.localDescription.sdp}});}else if(s.type==='answer'){if(pc.signalingState==='have-local-offer')await pc.setRemoteDescription({type:'answer',sdp:s.sdp});}else if(s.type==='candidate'){if(!pc.remoteDescription){item.queue.push(s.candidate);return;}await pc.addIceCandidate(s.candidate);}if(pc.remoteDescription){for(const candidate of item.queue.splice(0))await pc.addIceCandidate(candidate);}}catch(e){console.warn('voice signaling',e)}}
 function syncVoices(){if(!voiceEnabled)return;const active=new Set([...app.players.values()].filter(p=>p.voice&&p.id!==app.id).map(p=>p.id));for(const [id,item] of voiceConnections)if(!active.has(id)){item.pc.close();item.audio.remove();voiceConnections.delete(id);}for(const id of active)if(app.id<id&&!voiceConnections.has(id))initiate(id);$('#voice-peers').textContent=active.size?`Voice peers enabled: ${active.size}. Some networks need a TURN relay.`:'Microphone active. Waiting for consenting classmates…';}
-setupUI();init3D();connect();
+mountAvatarCreator(appearance=>{app.appearance=normalizeAppearance(appearance);app.color=app.appearance.color;if(app.joined)replaceMyAvatar();});setupUI();init3D();connect();

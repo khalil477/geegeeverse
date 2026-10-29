@@ -1,9 +1,9 @@
 {
-  "name": "geegeeverse-movement-recovery",
-  "version": "0.8.0",
+  "name": "geegeeverse-cartoon-avatar-alpha",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "uOttawa coordinate-anchored, GIS-powered 3D campus alpha with multiplayer learning",
+  "description": "3D cartoon avatar creator and multiplayer campus alpha",
   "engines": {
     "node": ">=20.11.0"
   },
