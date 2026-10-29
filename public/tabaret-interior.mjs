@@ -195,6 +195,12 @@ export function buildTabaretInterior({THREE, scene, sign}) {
   hallPortal.material.emissive=new THREE.Color(0x275a47);
   hallPortal.material.emissiveIntensity=.15;
   sign('HUGUETTE LABELLE','TBT112 · press E by the side doorway',9,5.1,0,16);
+  // A clearly labelled fast-travel preview: the actual floor-three corridors
+  // have not been measured, so this is not presented as a surveyed route.
+  const classroomMarker=cylinder(1.75,1.75,.12,-7.8,.10,-4.2,mat(0xa5c7e8),scene,20);
+  classroomMarker.material.emissive=new THREE.Color(0x34577c);
+  classroomMarker.material.emissiveIntensity=.13;
+  sign('TBT 333','Third-floor classroom preview · press E',-7.5,4.9,-4.8,15);
     sign('ROTUNDA','Recognizable architecture · estimated scale',0,3.1,-10.2,20);
   sign('PUBLIC-AREA PREVIEW','Upper galleries are visual only',0,7.2,-11.0,19);
   return {space:'tabaret',features:['rotunda','checker-floor','column-ring','balconies','skylight','stair-study','benches'],walkableLevel:0};
