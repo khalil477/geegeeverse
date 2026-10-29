@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import {buildCampusWorld} from './world.mjs';
-import {EYE_HEIGHT,START_POSITION,START_ROTUNDA,ZONES,movePlayer,nearbyAction,V2_VERSION} from './game-config.mjs';
+import {EYE_HEIGHT,START_POSITION,START_ROTUNDA,ZONES,movePlayer,nearbyAction,groundHeightFor,V2_VERSION} from './game-config.mjs';
 
 const $=(selector)=>document.querySelector(selector);
 const canvas=$('#game');
@@ -161,7 +161,7 @@ function render(now){
     const next=movePlayer(settings.position,settings.zone,settings.yaw,movementInput(),dt,isHeld('ShiftLeft','ShiftRight'));
     settings.position={x:next.x,z:next.z};settings.moving=next.moving;
     settings.feet+=next.moving?dt*(isHeld('ShiftLeft','ShiftRight')?15:10):0;
-    camera.position.set(next.x,EYE_HEIGHT+(next.moving?Math.sin(settings.feet)*.023:0),next.z);
+    camera.position.set(next.x,EYE_HEIGHT+groundHeightFor(settings.zone,next.x,next.z)+(next.moving?Math.sin(settings.feet)*.023:0),next.z);
     camera.rotation.set(settings.pitch,settings.yaw,0);
     const action=nearbyAction(settings.zone,next.x,next.z);
     $('#action').hidden=!action;
@@ -173,7 +173,7 @@ function render(now){
       fpsFrames=0;fpsLast=now;
     }
   }else{
-    camera.position.set(settings.position.x,EYE_HEIGHT,settings.position.z);
+    camera.position.set(settings.position.x,EYE_HEIGHT+groundHeightFor(settings.zone,settings.position.x,settings.position.z),settings.position.z);
     camera.rotation.set(settings.pitch,settings.yaw,0);
   }
   renderer.render(scene,camera);
