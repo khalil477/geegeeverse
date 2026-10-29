@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GeeGeeVerse · 3D Campus Explorer</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #91c7ec; font: 14px/1.4 system-ui, sans-serif; }
+    #campus-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+    .head { position: fixed; top: 15px; left: 15px; z-index: 5; background: #173d3bea; color: #f7fff7; border: 1px solid #badfce50; border-radius: 17px; padding: 14px 17px; box-shadow: 0 12px 30px #16312b30; max-width: min(310px, calc(100vw - 30px)); }
+    .head h1 { margin: 0; font-size: 23px; letter-spacing: -.8px; }
+    .head h1 b { color: #abefc1; }
+    .head p { font-size: 12px; color: #d4e8e0; margin: 5px 0 12px; }
+    .head a { text-decoration: none; color: #173d3b; background: #c1ecc9; font-weight: 750; border-radius: 8px; display: inline-block; padding: 7px 10px; }
+    .hud { position: fixed; bottom: 14px; left: 14px; right: 14px; z-index: 5; pointer-events: none; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; color: #fff; }
+    .hint { background: #173d3be5; border-radius: 12px; padding: 11px 13px; font-size: 12px; }
+    .hint small { display: block; opacity: .75; }
+    .hint strong { color: #bde9c9; }
+    .controls { display: flex; gap: 6px; pointer-events: auto; }
+    .controls button { border: 1px solid #aacdc5; background: #183f3edf; color: white; font-weight: 800; border-radius: 10px; width: 42px; height: 42px; cursor: pointer; touch-action: none; }
+    .status { position: fixed; top: 15px; right: 15px; z-index: 5; color: #fff; background: #173d3bcf; border-radius: 11px; padding: 8px 12px; font-size: 12px; }
+    .center { position: fixed; left: 50%; top: 50%; width: 8px; height: 8px; border: 2px solid white; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); }
+    .error { position: fixed; inset: 0; z-index: 10; display: none; place-items: center; background: #173d3b; color: white; text-align: center; padding: 24px; }
+    .error div { max-width: 450px; }
+    @media (max-width: 600px) { .head { padding: 10px 12px; } .head h1 { font-size: 19px; } .status { top: auto; right: 15px; bottom: 108px; } .hud { flex-direction: column; align-items: stretch; } .controls { justify-content: center; } .hint { max-width: 100%; } }
+  </style>
+</head>
+<body>
+  <canvas id="campus-canvas" tabindex="0" aria-label="Three-dimensional campus explorer"></canvas>
+  <section class="head">
+    <h1>GeeGee<b>Verse</b> ✳</h1>
+    <p>3D Campus Explorer · Experimental map<br>Illustrative campus, not an accurate uOttawa replica.</p>
+    <a href="/">← Back to original game</a>
+  </section>
+  <div class="status" id="status">Loading 3D campus…</div>
+  <div class="center" aria-hidden="true"></div>
+  <section class="hud">
+    <div class="hint"><strong>Click the ground to look around</strong><small>WASD / arrows: move · Shift: sprint · Mouse: look · Esc: release</small></div>
+    <div class="controls" aria-label="Movement buttons">
+      <button data-key="KeyA" aria-label="Move left">◀</button>
+      <button data-key="KeyW" aria-label="Move forward">▲</button>
+      <button data-key="KeyS" aria-label="Move backward">▼</button>
+      <button data-key="KeyD" aria-label="Move right">▶</button>
+    </div>
+  </section>
+  <div class="error" id="error" role="alert"><div><h2>Unable to load the 3D engine</h2><p>This demo needs an internet connection to load Three.js from jsDelivr. Your existing GeeGeeVerse game is unaffected.</p><a href="/" style="color:#bde9c9">Return to GeeGeeVerse</a></div></div>
+  <script type="module" src="/campus-demo.js"></script>
+</body>
+</html>
